@@ -37,6 +37,10 @@ struct MetricsView: View {
                 }
             }
 
+            if let ghost = workout.ghostStatus {
+                GhostPanel(status: ghost)
+            }
+
             if let comparison = workout.segmentComparison {
                 SegmentComparisonBanner(comparison: comparison)
             }
@@ -131,6 +135,62 @@ struct RoutePredictionPanel: View {
         }
         .padding(6)
         .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// The ghost race line: on route it shows the upcoming turn, whether
+/// you're ahead (green) or behind (red) the ghost at this exact spot,
+/// and the route distance left. Off route it becomes the way back.
+struct GhostPanel: View {
+    let status: GhostStatus
+
+    var body: some View {
+        HStack(spacing: 5) {
+            switch status.state {
+            case .onRoute:
+                Image(systemName: "figure.run.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.purple)
+                if let turn = status.turn {
+                    Image(systemName: turn.symbolName)
+                        .font(.footnote.weight(.bold))
+                }
+                Text(Format.signedDuration(status.deltaSeconds))
+                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .foregroundStyle(status.deltaSeconds >= 0 ? .green : .red)
+                Spacer()
+                Text(Format.distance(status.remainingMeters))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            case .offRoute:
+                Image(systemName: "location.slash")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                Text("Off route")
+                    .font(.footnote.weight(.semibold))
+                Spacer()
+                if let direction = status.directionToRoute {
+                    Image(systemName: direction.symbolName)
+                        .font(.footnote.weight(.bold))
+                }
+                if let meters = status.metersToRoute {
+                    Text("\(Int(meters.rounded())) m")
+                        .font(.footnote)
+                }
+            case .finished:
+                Image(systemName: "figure.run.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.purple)
+                Text(status.deltaSeconds >= 0 ? "Ghost beaten" : "Ghost won")
+                    .font(.footnote.weight(.semibold))
+                Spacer()
+                Text(Format.signedDuration(status.deltaSeconds))
+                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .foregroundStyle(status.deltaSeconds >= 0 ? .green : .red)
+            }
+        }
+        .padding(6)
+        .background(.purple.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

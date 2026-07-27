@@ -43,6 +43,13 @@ final class WorkoutManager: NSObject {
     /// How the segment just completed compares to the last 28 days of
     /// the same stretch. Shown briefly, then auto-hidden.
     private(set) var segmentComparison: SegmentComparison?
+    /// Live standing against the ghost, when this session races one.
+    private(set) var ghostStatus: GhostStatus?
+
+    /// Past routes offered as ghosts on the start screen, newest first.
+    var recentRoutes: [RouteRun] {
+        Array(routeStore.runs.suffix(10).reversed())
+    }
 
     /// Called with the finished summary once the effort score is in.
     var onFinished: ((RunSummary) -> Void)?
@@ -65,6 +72,7 @@ final class WorkoutManager: NSObject {
     private let routeRecorder = RouteRecorder()
     private let routeStore = RouteHistoryStore()
     private var routePredictor: RoutePredictor?
+    private var ghostTracker: GhostTracker?
     /// The last decision point passed, and the wall-clock offset when it
     /// was — start of the segment currently being run.
     private var lastDecisionPassage: (key: RouteGraph.GridKey, wallElapsed: TimeInterval)?
@@ -106,10 +114,12 @@ final class WorkoutManager: NSObject {
 
     // MARK: - Lifecycle
 
-    func start(with shoe: Shoe?) async {
+    func start(with shoe: Shoe?, ghost: RouteRun? = nil) async {
         guard phase == .idle || isFailed else { return }
         phase = .starting
         self.shoe = shoe
+        ghostTracker = ghost.map { GhostTracker(route: $0) }
+        ghostStatus = nil
         do {
             try await requestAuthorization()
 
@@ -310,6 +320,26 @@ final class WorkoutManager: NSObject {
         default:
             break
         }
+
+        // Ghost guidance keeps working while paused — standing at a
+        // corner working out where to go is exactly when it's needed.
+        if phase == .active || phase.isPaused {
+            updateGhostStatus()
+        }
+    }
+
+    private func updateGhostStatus() {
+        guard let tracker = ghostTracker, let location = routeRecorder.lastLocation else { return }
+        let wallElapsed = Date().timeIntervalSince(startDate)
+        let fresh = tracker.update(location: location, course: routeRecorder.course, wallElapsed: wallElapsed)
+        if let fresh, let previous = ghostStatus, fresh.state != previous.state {
+            switch fresh.state {
+            case .offRoute: WKInterfaceDevice.current().play(.failure)
+            case .onRoute: WKInterfaceDevice.current().play(.success)
+            case .finished: WKInterfaceDevice.current().play(.success)
+            }
+        }
+        ghostStatus = fresh ?? ghostStatus
     }
 
     /// Look up the current spot in the route graph. A haptic tap announces
@@ -383,6 +413,7 @@ final class WorkoutManager: NSObject {
         stopPedometer()
         routeRecorder.stop()
         routePrediction = nil
+        ghostStatus = nil
         tickTask?.cancel()
         tickTask = nil
         endDate = date
@@ -555,6 +586,8 @@ final class WorkoutManager: NSObject {
         routePrediction = nil
         segmentComparison = nil
         lastDecisionPassage = nil
+        ghostTracker = nil
+        ghostStatus = nil
         activeEnergyKilocalories = 0
         shoe = nil
         segments = []

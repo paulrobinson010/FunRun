@@ -22,4 +22,8 @@ struct RouteRun: Codable, Identifiable {
     var totalSeconds: TimeInterval
     var totalEnergyKilocalories: Double
     var points: [TrackPoint]
+
+    var totalDistanceMeters: Double {
+        points.last?.distanceMeters ?? 0
+    }
 }

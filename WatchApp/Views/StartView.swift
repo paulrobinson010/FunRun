@@ -7,6 +7,7 @@ struct StartView: View {
     let sync: WatchSync
 
     @State private var selectedShoeID: UUID?
+    @State private var selectedGhostID: UUID?
 
     var body: some View {
         NavigationStack {
@@ -38,11 +39,22 @@ struct StartView: View {
                     .frame(height: 48)
                 }
 
+                if !workout.recentRoutes.isEmpty {
+                    Picker("Ghost", selection: $selectedGhostID) {
+                        Text("No ghost").tag(UUID?.none)
+                        ForEach(workout.recentRoutes) { route in
+                            Text(route.ghostLabel).tag(UUID?.some(route.id))
+                        }
+                    }
+                    .frame(height: 48)
+                }
+
                 Button {
                     let shoe = sync.activeShoes.first { $0.id == selectedShoeID }
+                    let ghost = workout.recentRoutes.first { $0.id == selectedGhostID }
                     Task {
                         workout.dismissFailure()
-                        await workout.start(with: shoe)
+                        await workout.start(with: shoe, ghost: ghost)
                     }
                 } label: {
                     if workout.phase == .starting {
@@ -67,5 +79,13 @@ struct StartView: View {
                 selectedShoeID = sync.activeShoes.first?.id
             }
         }
+    }
+}
+
+extension RouteRun {
+    /// "22 Jul · 7.51 km · 42:10" — enough to recognise a route by.
+    var ghostLabel: String {
+        let day = date.formatted(.dateTime.day().month(.abbreviated))
+        return "\(day) · \(Format.distance(totalDistanceMeters)) · \(Format.duration(totalSeconds))"
     }
 }

@@ -44,6 +44,17 @@ your history.
   priced in probabilistically: if the left turn sometimes becomes a
   25-minute loop and sometimes a 40-minute one, you see the
   frequency-weighted expectation, and it sharpens as history grows.
+- **Ghost runs** — pick any recent route on the start screen and replay
+  it against a ghost of yourself. On route, the wrist shows the upcoming
+  turn, whether you're ahead or behind the ghost at this exact spot
+  (green/red seconds), and the distance left — covering both "I don't
+  know where I'm going today" (just follow the arrows) and "I want to do
+  this route" (race it). Drift off the route and it flips to
+  find-my-way-back mode: an arrow to the nearest point of the route and
+  how far away it is, with a haptic when you lose the route and another
+  when you rejoin — for the "I don't know where I am" moments. Matching
+  is monotonic along the ghost's track, so out-and-back routes don't
+  snap you onto the homeward leg while you're still outbound.
 - **Segment comparisons** — the stretch between two decision points is a
   segment. Completing one flashes your time with a signed delta against
   your last 28 days on that same stretch (green faster, red slower), and
