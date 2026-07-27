@@ -34,6 +34,16 @@ your history.
 - **Trainer wear tracking** — register shoes on the phone, pick a pair on
   the watch when starting, and each synced run adds its distance to that
   pair, with a wear bar and replacement warning.
+- **Intersection predictions** — the watch records each session's GPS
+  track and learns where your routes fork. Reaching a known decision
+  point taps your wrist and shows each choice — left/right/straight
+  relative to your heading — with the expected time until you're back,
+  the predicted session-total calories, and how often you've gone that
+  way. Because each branch's numbers are the average of what *actually*
+  happened on past runs that took it, later forks are automatically
+  priced in probabilistically: if the left turn sometimes becomes a
+  25-minute loop and sometimes a 40-minute one, you see the
+  frequency-weighted expectation, and it sharpens as history grows.
 
 ## Project layout
 
@@ -60,6 +70,13 @@ one side is asleep.
   kept as a single workout — a run is never lost.
 - The effort-score HealthKit sample needs watchOS 11; on older versions
   the score still syncs to the phone and shows in history.
+- Intersection detection snaps tracks to an ~18 m grid (`RouteGraph`); a
+  cell is a decision point when past traversals — arriving on a similar
+  heading — leave in two or more direction clusters with at least two
+  runs each. Predictions therefore need a couple of passes over each
+  branch before they appear. Route history lives on the watch
+  (`route-history.json`, capped at 120 runs) since that's where
+  predictions run.
 - Requires an Apple Watch with GPS; permissions requested on first start:
   Health, Motion & Fitness, Location.
 

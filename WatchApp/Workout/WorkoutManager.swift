@@ -2,6 +2,7 @@ import CoreMotion
 import Foundation
 import HealthKit
 import Observation
+import WatchKit
 
 /// Runs the whole session on the watch: the HealthKit workout (live heart
 /// rate, GPS-calibrated distance), walk/run auto-detection, and auto-pause.
@@ -35,6 +36,10 @@ final class WorkoutManager: NSObject {
     /// workout each. A single entry means the whole session fell back to
     /// one workout (e.g. the running never passed the gate).
     private(set) var savedWorkoutChunks: [RunSegment] = []
+    private(set) var activeEnergyKilocalories: Double = 0
+    /// Non-nil while standing at a known intersection: what each choice
+    /// is expected to cost, from past runs through this exact spot.
+    private(set) var routePrediction: RoutePrediction?
 
     /// Called with the finished summary once the effort score is in.
     var onFinished: ((RunSummary) -> Void)?
@@ -54,6 +59,9 @@ final class WorkoutManager: NSObject {
 
     private let healthStore = HKHealthStore()
     private let pedometer = CMPedometer()
+    private let routeRecorder = RouteRecorder()
+    private let routeStore = RouteHistoryStore()
+    private var routePredictor: RoutePredictor?
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
     private var classifier = ActivityClassifier()
@@ -130,6 +138,14 @@ final class WorkoutManager: NSObject {
             currentPauseStart = nil
             savedWorkoutChunks = []
             finishedWorkouts = []
+
+            activeEnergyKilocalories = 0
+            routePrediction = nil
+            routePredictor = RoutePredictor(runs: routeStore.runs)
+            routeRecorder.metrics = { [weak self] in
+                (self?.distanceMeters ?? 0, self?.activeEnergyKilocalories ?? 0)
+            }
+            routeRecorder.start(at: start)
 
             startPedometer(from: start)
             startTicking()
@@ -277,6 +293,7 @@ final class WorkoutManager: NSObject {
                     beginSegment(at: now)
                 }
             }
+            updateRoutePrediction()
         case .paused(auto: true):
             if speed >= resumeSpeed {
                 session?.resume()
@@ -284,6 +301,22 @@ final class WorkoutManager: NSObject {
         default:
             break
         }
+    }
+
+    /// Look up the current spot in the route graph. A haptic tap announces
+    /// arrival at a new intersection so the wrist doesn't need watching.
+    private func updateRoutePrediction() {
+        guard let predictor = routePredictor,
+              let location = routeRecorder.lastLocation,
+              let course = routeRecorder.course else {
+            routePrediction = nil
+            return
+        }
+        let fresh = predictor.prediction(at: location, course: course, energySoFar: activeEnergyKilocalories)
+        if let fresh, fresh.nodeKey != routePrediction?.nodeKey {
+            WKInterfaceDevice.current().play(.directionUp)
+        }
+        routePrediction = fresh
     }
 
     /// Live speed: the pedometer's pace when fresh, otherwise the slope of
@@ -321,9 +354,12 @@ final class WorkoutManager: NSObject {
 
     private func finishCollection(at date: Date) async {
         stopPedometer()
+        routeRecorder.stop()
+        routePrediction = nil
         tickTask?.cancel()
         tickTask = nil
         endDate = date
+        saveRouteRun(endingAt: date)
         closeSegment(at: date)
         if let pauseStart = currentPauseStart {
             pauseIntervals.append(DateInterval(start: pauseStart, end: date))
@@ -391,6 +427,19 @@ final class WorkoutManager: NSObject {
                 savedWorkoutChunks = chunks
             }
         }
+    }
+
+    /// Keep this session's GPS track as prediction history — but only a
+    /// real outing; a doorstep false start would just add noise.
+    private func saveRouteRun(endingAt date: Date) {
+        let points = routeRecorder.points
+        guard distanceMeters >= 500, points.count >= 20 else { return }
+        routeStore.add(RouteRun(
+            date: startDate,
+            totalSeconds: date.timeIntervalSince(startDate),
+            totalEnergyKilocalories: activeEnergyKilocalories,
+            points: points
+        ))
     }
 
     private func saveWorkout(for chunk: RunSegment, totalEnergy: Double?) async throws -> HKWorkout {
@@ -475,6 +524,9 @@ final class WorkoutManager: NSObject {
         pauseIntervals = []
         currentPauseStart = nil
         averageHeartRate = nil
+        routePredictor = nil
+        routePrediction = nil
+        activeEnergyKilocalories = 0
         shoe = nil
         segments = []
         segmentStart = nil
@@ -544,6 +596,8 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
             .mostRecentQuantity()?.doubleValue(for: bpm)
         let distance = workoutBuilder.statistics(for: HKQuantityType(.distanceWalkingRunning))?
             .sumQuantity()?.doubleValue(for: .meter())
+        let energy = workoutBuilder.statistics(for: HKQuantityType(.activeEnergyBurned))?
+            .sumQuantity()?.doubleValue(for: .kilocalorie())
         Task { @MainActor in
             if let heartRate {
                 self.heartRate = heartRate
@@ -552,6 +606,9 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
             if let distance {
                 self.distanceMeters = distance
                 self.distanceHistory.append((Date(), distance))
+            }
+            if let energy {
+                self.activeEnergyKilocalories = energy
             }
         }
     }

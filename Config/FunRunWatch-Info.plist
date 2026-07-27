@@ -9,6 +9,7 @@
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>workout-processing</string>
+		<string>location</string>
 	</array>
 	<key>NSHealthShareUsageDescription</key>
 	<string>FunRun reads your heart rate and workout distance to show them live during a session and in your history.</string>

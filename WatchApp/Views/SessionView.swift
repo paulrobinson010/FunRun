@@ -37,6 +37,10 @@ struct MetricsView: View {
                 }
             }
 
+            if let prediction = workout.routePrediction {
+                RoutePredictionPanel(prediction: prediction)
+            }
+
             Text(Format.duration(workout.elapsed))
                 .font(.system(.title2, design: .rounded).weight(.semibold))
                 .foregroundStyle(.yellow)
@@ -77,6 +81,36 @@ struct MetricsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+/// Shown at a known decision point: one row per way you've gone before —
+/// expected time to finish, expected session-total calories, and how
+/// often you've picked it.
+struct RoutePredictionPanel: View {
+    let prediction: RoutePrediction
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(prediction.choices.prefix(3)) { choice in
+                HStack(spacing: 5) {
+                    Image(systemName: choice.direction.symbolName)
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(.orange)
+                        .frame(width: 16)
+                    Text("\(choice.finishInMinutes)m")
+                        .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    Text("\(choice.totalCalories) cal")
+                        .font(.system(.footnote, design: .rounded))
+                    Spacer()
+                    Text("\(choice.probabilityPercent)%")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(6)
+        .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
