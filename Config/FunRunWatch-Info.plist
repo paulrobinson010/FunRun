@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>FunRun</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>FunRun reads your heart rate and workout distance to show them live during a session and in your history.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>FunRun saves each session as a workout, including distance, heart rate and your effort score.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Step cadence from the motion sensors is how FunRun tells walking from running and detects when you have stopped, for auto-pause.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is used during outdoor workouts to measure distance and pace accurately.</string>
+</dict>
+</plist>
