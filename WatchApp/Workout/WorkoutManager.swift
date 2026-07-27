@@ -31,6 +31,10 @@ final class WorkoutManager: NSObject {
     private(set) var shoe: Shoe?
     /// Set once collection ends; what the summary screen shows as avg HR.
     private(set) var averageHeartRate: Double?
+    /// The walk/run blocks the session was saved to HealthKit as — one
+    /// workout each. A single entry means the whole session fell back to
+    /// one workout (e.g. the running never passed the gate).
+    private(set) var savedWorkoutChunks: [RunSegment] = []
 
     /// Called with the finished summary once the effort score is in.
     var onFinished: ((RunSummary) -> Void)?
@@ -75,7 +79,15 @@ final class WorkoutManager: NSObject {
 
     private var startDate = Date()
     private var endDate = Date()
-    private var finishedWorkout: HKWorkout?
+    /// The workouts actually written to HealthKit — one per saved chunk,
+    /// or one for the whole session. The effort score is related to each.
+    private var finishedWorkouts: [HKWorkout] = []
+
+    // Raw material for splitting the session into per-chunk workouts:
+    // our own copy of the heart-rate stream, and every pause interval.
+    private var heartRateHistory: [(date: Date, bpm: Double)] = []
+    private var pauseIntervals: [DateInterval] = []
+    private var currentPauseStart: Date?
 
     // MARK: - Lifecycle
 
@@ -113,6 +125,11 @@ final class WorkoutManager: NSObject {
             heartRate = 0
             elapsed = 0
             distanceHistory = []
+            heartRateHistory = []
+            pauseIntervals = []
+            currentPauseStart = nil
+            savedWorkoutChunks = []
+            finishedWorkouts = []
 
             startPedometer(from: start)
             startTicking()
@@ -156,7 +173,8 @@ final class WorkoutManager: NSObject {
             shoeID: shoe?.id,
             shoeName: shoe?.displayName,
             segments: segments,
-            autoPauseCount: autoPauseCount
+            autoPauseCount: autoPauseCount,
+            savedWorkouts: savedWorkoutChunks
         )
         onFinished?(summary)
         reset()
@@ -307,6 +325,10 @@ final class WorkoutManager: NSObject {
         tickTask = nil
         endDate = date
         closeSegment(at: date)
+        if let pauseStart = currentPauseStart {
+            pauseIntervals.append(DateInterval(start: pauseStart, end: date))
+            currentPauseStart = nil
+        }
         guard let builder else {
             phase = .ended
             return
@@ -315,36 +337,143 @@ final class WorkoutManager: NSObject {
         let bpm = HKUnit.count().unitDivided(by: .minute())
         averageHeartRate = builder.statistics(for: HKQuantityType(.heartRate))?
             .averageQuantity()?.doubleValue(for: bpm)
+        let totalEnergy = builder.statistics(for: HKQuantityType(.activeEnergyBurned))?
+            .sumQuantity()?.doubleValue(for: .kilocalorie())
+
+        let chunks = WorkoutChunker.chunks(from: segments)
         do {
             try await builder.endCollection(at: date)
-            finishedWorkout = try await builder.finishWorkout()
+            // A pure running session keeps the live workout — it carries
+            // the richest data. Anything else (a chain, or an
+            // all-walking session started as .running) is rebuilt as one
+            // correctly-typed workout per chunk.
+            if chunks.count <= 1, (chunks.first?.mode ?? .running) == .running {
+                finishedWorkouts = [try await builder.finishWorkout()]
+                savedWorkoutChunks = chunks.isEmpty
+                    ? [RunSegment(mode: .running, start: startDate, end: date, distanceMeters: distanceMeters)]
+                    : chunks
+            } else {
+                await saveChunkedWorkouts(chunks, totalEnergy: totalEnergy, liveBuilder: builder)
+            }
         } catch {
-            finishedWorkout = nil
+            finishedWorkouts = []
+            savedWorkoutChunks = chunks
         }
         phase = .ended
     }
 
-    private func saveEffortToHealthKit(_ effort: Int) async {
-        guard #available(watchOS 11.0, *), let workout = finishedWorkout else { return }
-        let sample = HKQuantitySample(
-            type: HKQuantityType(.workoutEffortScore),
-            quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: Double(effort)),
-            start: workout.startDate,
-            end: workout.endDate
-        )
+    /// Write one HealthKit workout per chunk, typed walking or running,
+    /// carrying that chunk's distance, its slice of the heart-rate stream,
+    /// a distance-proportional share of the energy, and any pauses that
+    /// fell inside it. Only once every chunk has saved is the live
+    /// workout discarded — if anything fails, the partial saves are
+    /// rolled back and the whole session is kept as the single live
+    /// workout instead, so a run is never lost.
+    private func saveChunkedWorkouts(_ chunks: [RunSegment], totalEnergy: Double?, liveBuilder: HKLiveWorkoutBuilder) async {
+        var saved: [HKWorkout] = []
         do {
-            try await healthStore.save(sample)
-            _ = try await healthStore.relateWorkoutEffortSample(sample, with: workout, activity: nil)
+            for chunk in chunks {
+                saved.append(try await saveWorkout(for: chunk, totalEnergy: totalEnergy))
+            }
+            liveBuilder.discardWorkout()
+            finishedWorkouts = saved
+            savedWorkoutChunks = chunks
         } catch {
-            // The score still travels on the RunSummary even if HealthKit
-            // declines the related sample.
+            for workout in saved {
+                try? await healthStore.delete(workout)
+            }
+            do {
+                let workout = try await liveBuilder.finishWorkout()
+                finishedWorkouts = [workout]
+                savedWorkoutChunks = [RunSegment(mode: .running, start: startDate, end: endDate, distanceMeters: distanceMeters)]
+            } catch {
+                finishedWorkouts = []
+                savedWorkoutChunks = chunks
+            }
+        }
+    }
+
+    private func saveWorkout(for chunk: RunSegment, totalEnergy: Double?) async throws -> HKWorkout {
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = chunk.mode == .running ? .running : .walking
+        configuration.locationType = .outdoor
+        let builder = HKWorkoutBuilder(healthStore: healthStore, configuration: configuration, device: .local())
+        try await builder.beginCollection(at: chunk.start)
+
+        var samples: [HKSample] = []
+        if chunk.distanceMeters > 0 {
+            samples.append(HKQuantitySample(
+                type: HKQuantityType(.distanceWalkingRunning),
+                quantity: HKQuantity(unit: .meter(), doubleValue: chunk.distanceMeters),
+                start: chunk.start,
+                end: chunk.end
+            ))
+        }
+        if let totalEnergy, totalEnergy > 0, distanceMeters > 0 {
+            let share = totalEnergy * (chunk.distanceMeters / distanceMeters)
+            if share > 0 {
+                samples.append(HKQuantitySample(
+                    type: HKQuantityType(.activeEnergyBurned),
+                    quantity: HKQuantity(unit: .kilocalorie(), doubleValue: share),
+                    start: chunk.start,
+                    end: chunk.end
+                ))
+            }
+        }
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        for reading in heartRateHistory where reading.date >= chunk.start && reading.date <= chunk.end {
+            samples.append(HKQuantitySample(
+                type: HKQuantityType(.heartRate),
+                quantity: HKQuantity(unit: bpm, doubleValue: reading.bpm),
+                start: reading.date,
+                end: reading.date
+            ))
+        }
+        if !samples.isEmpty {
+            try await builder.addSamples(samples)
+        }
+
+        var events: [HKWorkoutEvent] = []
+        for pause in pauseIntervals where pause.start >= chunk.start && pause.end <= chunk.end {
+            events.append(HKWorkoutEvent(type: .pause, dateInterval: DateInterval(start: pause.start, duration: 0), metadata: nil))
+            events.append(HKWorkoutEvent(type: .resume, dateInterval: DateInterval(start: pause.end, duration: 0), metadata: nil))
+        }
+        if !events.isEmpty {
+            try await builder.addWorkoutEvents(events)
+        }
+
+        try await builder.endCollection(at: chunk.end)
+        return try await builder.finishWorkout()
+    }
+
+    private func saveEffortToHealthKit(_ effort: Int) async {
+        guard #available(watchOS 11.0, *) else { return }
+        // One score for the outing, related to every workout it produced.
+        for workout in finishedWorkouts {
+            let sample = HKQuantitySample(
+                type: HKQuantityType(.workoutEffortScore),
+                quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: Double(effort)),
+                start: workout.startDate,
+                end: workout.endDate
+            )
+            do {
+                try await healthStore.save(sample)
+                _ = try await healthStore.relateWorkoutEffortSample(sample, with: workout, activity: nil)
+            } catch {
+                // The score still travels on the RunSummary even if
+                // HealthKit declines the related sample.
+            }
         }
     }
 
     private func reset() {
         session = nil
         builder = nil
-        finishedWorkout = nil
+        finishedWorkouts = []
+        savedWorkoutChunks = []
+        heartRateHistory = []
+        pauseIntervals = []
+        currentPauseStart = nil
         averageHeartRate = nil
         shoe = nil
         segments = []
@@ -379,8 +508,13 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
             switch toState {
             case .running:
                 self.lastMovementAt = date
+                if let pauseStart = self.currentPauseStart {
+                    self.pauseIntervals.append(DateInterval(start: pauseStart, end: date))
+                    self.currentPauseStart = nil
+                }
                 self.phase = .active
             case .paused:
+                self.currentPauseStart = date
                 self.phase = .paused(auto: self.pendingAutoPause)
                 self.pendingAutoPause = false
             case .ended:
@@ -413,6 +547,7 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
         Task { @MainActor in
             if let heartRate {
                 self.heartRate = heartRate
+                self.heartRateHistory.append((Date(), heartRate))
             }
             if let distance {
                 self.distanceMeters = distance

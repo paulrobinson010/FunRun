@@ -21,6 +21,18 @@ struct RunDetailView: View {
                 }
             }
 
+            if let saved = run.savedWorkouts, saved.count > 1 {
+                Section("Saved to Health as") {
+                    ForEach(Array(saved.enumerated()), id: \.offset) { index, chunk in
+                        LabeledContent {
+                            Text(Format.distance(chunk.distanceMeters))
+                        } label: {
+                            Label("\(index + 1). \(chunk.mode.label)", systemImage: chunk.mode.symbolName)
+                        }
+                    }
+                }
+            }
+
             Section("Walk / run split") {
                 LabeledContent {
                     Text(Format.distance(run.distance(in: .running)))

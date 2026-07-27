@@ -31,6 +31,12 @@ struct SummaryView: View {
                 }
                 .font(.footnote)
 
+                if workout.savedWorkoutChunks.count > 1 {
+                    Text("Saved as \(Self.chunkDescription(workout.savedWorkoutChunks))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 Divider()
 
                 Text("How hard was that?")
@@ -73,6 +79,12 @@ struct SummaryView: View {
             await workout.finish(effort: effort)
             saving = false
         }
+    }
+
+    static func chunkDescription(_ chunks: [RunSegment]) -> String {
+        chunks
+            .map { "\($0.mode.label.lowercased()) \(Format.distance($0.distanceMeters))" }
+            .joined(separator: " + ")
     }
 
     static func effortLabel(_ score: Int) -> String {

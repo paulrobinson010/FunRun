@@ -25,6 +25,10 @@ struct RunSummary: Codable, Identifiable, Hashable {
     var shoeName: String?
     var segments: [RunSegment]
     var autoPauseCount: Int
+    /// How the session was written to HealthKit: one entry per saved
+    /// workout. Several entries mean the outing was chained into separate
+    /// walk and run workouts; a single entry means it stayed one workout.
+    var savedWorkouts: [RunSegment]? = nil
 
     var distanceKm: Double { distanceMeters / 1000 }
 

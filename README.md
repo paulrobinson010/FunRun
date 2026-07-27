@@ -20,10 +20,17 @@ your history.
 - **Auto-pause after 5 seconds** — stand still for 5 seconds and the
   session pauses; start moving again and it resumes on its own. Manual
   pause never auto-resumes.
-- **Workout + effort score on finish** — the session is saved to
-  HealthKit as an outdoor run, then the watch asks for a 1–10 perceived
-  effort. On watchOS 11+ the score is stored as the workout's effort
-  score, so the Fitness app rates the session correctly too.
+- **Chained workouts on finish** — a mixed outing is saved to HealthKit
+  as separate, correctly-typed workouts: walk 2 km, run 5 km, walk 4 km
+  becomes three workouts back-to-back. A shortest-time gate (5 minutes)
+  stops token efforts from splitting the session — walk 1 km, run 500 m,
+  walk 2.5 km just saves as one 4 km walk. Each chunk carries its own
+  slice of the heart-rate stream, its distance and energy share, and any
+  pauses that fell inside it.
+- **Effort score on finish** — after saving, the watch asks for a 1–10
+  perceived effort. On watchOS 11+ the score is stored as the effort
+  score on every workout in the chain, so the Fitness app rates the
+  session correctly too.
 - **Trainer wear tracking** — register shoes on the phone, pick a pair on
   the watch when starting, and each synced run adds its distance to that
   pair, with a wear bar and replacement warning.
@@ -44,9 +51,13 @@ one side is asleep.
 
 ## Notes
 
-- HealthKit can't switch a workout's activity type mid-session, so mixed
-  sessions are saved as outdoor runs; the walk/run split lives in the
-  app's own segment data.
+- The sensors run as a single live HealthKit session for the whole
+  outing (continuous heart rate, GPS distance). At the end the detected
+  segments are gated and merged (`WorkoutChunker`); a pure run keeps the
+  live workout with its full-fidelity data, anything else is rewritten as
+  one workout per chunk and the live workout is discarded. If a chunk
+  save fails, the partial saves are rolled back and the whole session is
+  kept as a single workout — a run is never lost.
 - The effort-score HealthKit sample needs watchOS 11; on older versions
   the score still syncs to the phone and shows in history.
 - Requires an Apple Watch with GPS; permissions requested on first start:
