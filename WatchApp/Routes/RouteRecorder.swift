@@ -9,6 +9,9 @@ import Observation
 @Observable
 final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     private(set) var points: [TrackPoint] = []
+    /// Every accurate fix, unthinned — feeds the HealthKit workout route
+    /// so the Fitness app can draw the map.
+    private(set) var rawLocations: [CLLocation] = []
     private(set) var lastLocation: CLLocation?
 
     /// Supplied by WorkoutManager so each point carries the workout state.
@@ -29,6 +32,7 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     func start(at date: Date) {
         sessionStart = date
         points = []
+        rawLocations = []
         lastLocation = nil
         if manager.authorizationStatus == .notDetermined {
             manager.requestWhenInUseAuthorization()
@@ -63,6 +67,7 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     private func ingest(_ location: CLLocation) {
         guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= accuracyLimitMeters else { return }
         lastLocation = location
+        rawLocations.append(location)
         if let last = points.last {
             let previous = CLLocation(latitude: last.latitude, longitude: last.longitude)
             guard location.distance(from: previous) >= minimumSpacingMeters else { return }

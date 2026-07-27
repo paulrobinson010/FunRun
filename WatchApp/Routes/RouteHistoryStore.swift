@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import WidgetKit
 
 /// A stored route's headline facts — everything list UIs need without
 /// touching the (much larger) point files.
@@ -30,10 +31,15 @@ final class RouteHistoryStore {
     static let retentionDays = 365
     private static let maximumRuns = 400
 
+    /// Where the complication reads this week's distance from.
+    static let appGroupID = "group.com.paulrobinson.FunRun"
+    static let weekMetersKey = "weekMeters"
+
     init() {
         migrateLegacyStoreIfNeeded()
         loadIndex()
         prune()
+        publishWidgetStats()
     }
 
     func add(_ run: RouteRun) {
@@ -47,6 +53,19 @@ final class RouteHistoryStore {
         ), at: 0)
         prune()
         saveIndex()
+        publishWidgetStats()
+    }
+
+    /// Push this week's distance to the shared container so the watch
+    /// face complication stays current.
+    private func publishWidgetStats() {
+        guard let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start,
+              let defaults = UserDefaults(suiteName: Self.appGroupID) else { return }
+        let weekMeters = metas
+            .filter { $0.date >= weekStart }
+            .reduce(0) { $0 + $1.totalDistanceMeters }
+        defaults.set(weekMeters, forKey: Self.weekMetersKey)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     var favourites: [RouteMeta] {

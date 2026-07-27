@@ -4,6 +4,15 @@ import HealthKit
 import Observation
 import WatchKit
 
+/// A completed kilometre: its moving time and how it compared to the one
+/// before.
+struct KmSplit: Equatable {
+    var kilometre: Int
+    var seconds: TimeInterval
+    var deltaToPrevious: TimeInterval?
+    var at: Date
+}
+
 /// Runs the whole session on the watch: the HealthKit workout (live heart
 /// rate, GPS-calibrated distance), walk/run auto-detection, and auto-pause.
 ///
@@ -45,6 +54,9 @@ final class WorkoutManager: NSObject {
     private(set) var segmentComparison: SegmentComparison?
     /// Live standing against the ghost, when this session races one.
     private(set) var ghostStatus: GhostStatus?
+    /// The kilometre split that just completed — a wrist tap plus a brief
+    /// banner with its moving time and delta to the previous kilometre.
+    private(set) var kmSplit: KmSplit?
 
     /// Past routes offered as ghosts on the start screen — the last 12
     /// months, newest first.
@@ -88,6 +100,11 @@ final class WorkoutManager: NSObject {
     /// was — start of the segment currently being run.
     private var lastDecisionPassage: (key: RouteGraph.GridKey, wallElapsed: TimeInterval)?
     private let comparisonDisplaySeconds: TimeInterval = 25
+
+    // Kilometre split bookkeeping (moving time, from builder elapsed).
+    private var nextSplitMeters: Double = 1000
+    private var lastSplitElapsed: TimeInterval = 0
+    private var previousSplitSeconds: TimeInterval?
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
     private var classifier = ActivityClassifier()
@@ -171,14 +188,30 @@ final class WorkoutManager: NSObject {
             routePrediction = nil
             segmentComparison = nil
             lastDecisionPassage = nil
+            kmSplit = nil
+            nextSplitMeters = 1000
+            lastSplitElapsed = 0
+            previousSplitSeconds = nil
             // A year of tracks is too much to crunch on the main actor;
             // predictions simply stay off until the graph is ready
-            // (they need a GPS fix first anyway).
+            // (they need a GPS fix first anyway). The same pass upgrades
+            // a favourite ghost to the fastest recorded attempt of that
+            // route — a favourite means the route, not one day's run.
             routePredictor = nil
+            let favouriteGhost = ghost.flatMap { candidate in
+                routeStore.metas.first { $0.id == candidate.id }?.isFavourite == true ? candidate : nil
+            }
             Task.detached(priority: .utility) { [weak self] in
-                let predictor = RoutePredictor(runs: RouteHistoryStore.loadAllRuns())
+                let runs = RouteHistoryStore.loadAllRuns()
+                let predictor = RoutePredictor(runs: runs)
+                let bestAttempt = favouriteGhost.map { RouteMatcher.fastestMatch(for: $0, in: runs) }
                 await MainActor.run {
-                    self?.routePredictor = predictor
+                    guard let self else { return }
+                    self.routePredictor = predictor
+                    if let bestAttempt, bestAttempt.id != favouriteGhost?.id, self.ghostTracker != nil {
+                        self.ghostTracker = GhostTracker(route: bestAttempt)
+                        self.ghostStatus = nil
+                    }
                 }
             }
             routeRecorder.metrics = { [weak self] in
@@ -229,7 +262,8 @@ final class WorkoutManager: NSObject {
             shoeName: shoe?.displayName,
             segments: segments,
             autoPauseCount: autoPauseCount,
-            savedWorkouts: savedWorkoutChunks
+            savedWorkouts: savedWorkoutChunks,
+            track: mapTrack()
         )
         onFinished?(summary)
         reset()
@@ -333,6 +367,7 @@ final class WorkoutManager: NSObject {
                 }
             }
             updateRoutePrediction()
+            updateKmSplit()
         case .paused(auto: true):
             if speed >= resumeSpeed {
                 session?.resume()
@@ -345,6 +380,27 @@ final class WorkoutManager: NSObject {
         // corner working out where to go is exactly when it's needed.
         if phase == .active || phase.isPaused {
             updateGhostStatus()
+        }
+    }
+
+    /// Crossing a kilometre boundary taps the wrist and flashes the
+    /// split's moving time with its delta to the previous kilometre.
+    private func updateKmSplit() {
+        if distanceMeters >= nextSplitMeters {
+            let seconds = elapsed - lastSplitElapsed
+            kmSplit = KmSplit(
+                kilometre: Int((nextSplitMeters / 1000).rounded()),
+                seconds: seconds,
+                deltaToPrevious: previousSplitSeconds.map { seconds - $0 },
+                at: Date()
+            )
+            previousSplitSeconds = seconds
+            lastSplitElapsed = elapsed
+            nextSplitMeters += 1000
+            WKInterfaceDevice.current().play(.notification)
+        }
+        if let split = kmSplit, Date().timeIntervalSince(split.at) > 20 {
+            kmSplit = nil
         }
     }
 
@@ -371,7 +427,14 @@ final class WorkoutManager: NSObject {
             routePrediction = nil
             return
         }
-        let fresh = predictor.prediction(at: location, course: course, energySoFar: activeEnergyKilocalories)
+        let wallElapsed = Date().timeIntervalSince(startDate)
+        let currentAverageSpeed = (wallElapsed > 180 && distanceMeters > 400) ? distanceMeters / wallElapsed : nil
+        let fresh = predictor.prediction(
+            at: location,
+            course: course,
+            energySoFar: activeEnergyKilocalories,
+            currentAverageSpeed: currentAverageSpeed
+        )
         if let fresh, fresh.nodeKey != routePrediction?.nodeKey {
             WKInterfaceDevice.current().play(.directionUp)
             recordDecisionPassage(at: fresh.nodeKey, predictor: predictor)
@@ -473,7 +536,28 @@ final class WorkoutManager: NSObject {
             finishedWorkouts = []
             savedWorkoutChunks = chunks
         }
+        await attachWorkoutRoutes()
         phase = .ended
+    }
+
+    /// Attach the GPS track to each saved workout so the Fitness app can
+    /// draw its map — each chunk workout gets its slice of the route.
+    private func attachWorkoutRoutes() async {
+        let locations = routeRecorder.rawLocations
+        guard !locations.isEmpty else { return }
+        for workout in finishedWorkouts {
+            let slice = locations.filter {
+                $0.timestamp >= workout.startDate && $0.timestamp <= workout.endDate
+            }
+            guard slice.count >= 2 else { continue }
+            let routeBuilder = HKWorkoutRouteBuilder(healthStore: healthStore, device: .local())
+            do {
+                try await routeBuilder.insertRouteData(slice)
+                _ = try await routeBuilder.finishRoute(with: workout, metadata: nil)
+            } catch {
+                // A workout without a map is still a workout.
+            }
+        }
     }
 
     /// Write one HealthKit workout per chunk, typed walking or running,
@@ -505,6 +589,23 @@ final class WorkoutManager: NSObject {
                 savedWorkoutChunks = chunks
             }
         }
+    }
+
+    /// The recorded track thinned to ~20 m spacing — light enough to ride
+    /// along on the phone sync, detailed enough to draw the run's map.
+    private func mapTrack() -> [TrackPoint]? {
+        let points = routeRecorder.points
+        guard points.count >= 2 else { return nil }
+        var thinned: [TrackPoint] = []
+        var lastKeptDistance = -Double.greatestFiniteMagnitude
+        for point in points where point.distanceMeters - lastKeptDistance >= 20 {
+            thinned.append(point)
+            lastKeptDistance = point.distanceMeters
+        }
+        if let last = points.last, thinned.last?.distanceMeters != last.distanceMeters {
+            thinned.append(last)
+        }
+        return thinned
     }
 
     /// Keep this session's GPS track as prediction history — but only a
@@ -608,6 +709,7 @@ final class WorkoutManager: NSObject {
         lastDecisionPassage = nil
         ghostTracker = nil
         ghostStatus = nil
+        kmSplit = nil
         activeEnergyKilocalories = 0
         shoe = nil
         segments = []

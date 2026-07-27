@@ -35,14 +35,26 @@ final class ShoeStore {
         save()
     }
 
+    /// A wear update worth reacting to: the shoe and its life fraction
+    /// before and after a run was applied.
+    struct WearChange {
+        var shoe: Shoe
+        var fractionBefore: Double
+        var fractionAfter: Double
+    }
+
     /// Add a finished run's distance to the shoes it was done in.
-    func apply(_ run: RunSummary) {
-        guard !appliedRunIDs.contains(run.id) else { return }
+    @discardableResult
+    func apply(_ run: RunSummary) -> WearChange? {
+        guard !appliedRunIDs.contains(run.id) else { return nil }
         appliedRunIDs.insert(run.id)
+        defer { save() }
         if let shoeID = run.shoeID, let index = shoes.firstIndex(where: { $0.id == shoeID }) {
+            let before = shoes[index].wearFraction
             shoes[index].distanceMeters += run.distanceMeters
+            return WearChange(shoe: shoes[index], fractionBefore: before, fractionAfter: shoes[index].wearFraction)
         }
-        save()
+        return nil
     }
 
     // MARK: - Persistence

@@ -8,6 +8,9 @@ struct StartView: View {
 
     @State private var selectedShoeID: UUID?
     @State private var selectedGhostID: UUID?
+    /// Remembers the last pair used, so forgetting to pick doesn't lose
+    /// wear tracking.
+    @AppStorage("lastShoeID") private var lastShoeID: String = ""
 
     var body: some View {
         NavigationStack {
@@ -56,6 +59,9 @@ struct StartView: View {
                 Button {
                     let shoe = sync.activeShoes.first { $0.id == selectedShoeID }
                     let ghost = selectedGhostID.flatMap { workout.ghostRoute(withID: $0) }
+                    if let shoe {
+                        lastShoeID = shoe.id.uuidString
+                    }
                     Task {
                         workout.dismissFailure()
                         await workout.start(with: shoe, ghost: ghost)
@@ -80,7 +86,9 @@ struct StartView: View {
         .navigationTitle("FunRun")
         .onAppear {
             if selectedShoeID == nil {
-                selectedShoeID = sync.activeShoes.first?.id
+                let remembered = UUID(uuidString: lastShoeID)
+                selectedShoeID = sync.activeShoes.first { $0.id == remembered }?.id
+                    ?? sync.activeShoes.first?.id
             }
         }
     }

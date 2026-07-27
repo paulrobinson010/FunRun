@@ -29,6 +29,8 @@ struct RunSummary: Codable, Identifiable, Hashable {
     /// workout. Several entries mean the outing was chained into separate
     /// walk and run workouts; a single entry means it stayed one workout.
     var savedWorkouts: [RunSegment]? = nil
+    /// The route, thinned for drawing on the phone's map (~20 m spacing).
+    var track: [TrackPoint]? = nil
 
     var distanceKm: Double { distanceMeters / 1000 }
 

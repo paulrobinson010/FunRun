@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct RunDetailView: View {
@@ -5,6 +6,14 @@ struct RunDetailView: View {
 
     var body: some View {
         List {
+            if let track = run.track, track.count >= 2 {
+                Section {
+                    RunMapView(track: track)
+                        .frame(height: 220)
+                        .listRowInsets(EdgeInsets())
+                }
+            }
+
             Section {
                 LabeledContent("Distance", value: Format.distance(run.distanceMeters))
                 LabeledContent("Moving time", value: Format.duration(run.activeSeconds))
@@ -64,6 +73,32 @@ struct RunDetailView: View {
         }
         .navigationTitle(run.startDate.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// The run's route drawn from the synced track, start and finish marked.
+struct RunMapView: View {
+    let track: [TrackPoint]
+
+    private var coordinates: [CLLocationCoordinate2D] {
+        track.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    var body: some View {
+        Map(interactionModes: [.pan, .zoom]) {
+            MapPolyline(coordinates: coordinates)
+                .stroke(.blue, lineWidth: 3)
+            if let start = coordinates.first {
+                Annotation("Start", coordinate: start) {
+                    Circle().fill(.green).frame(width: 10, height: 10)
+                }
+            }
+            if let end = coordinates.last {
+                Annotation("Finish", coordinate: end) {
+                    Circle().fill(.red).frame(width: 10, height: 10)
+                }
+            }
+        }
     }
 }
 

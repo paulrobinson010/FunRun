@@ -7,6 +7,26 @@ struct HistoryView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let week = TrainingLoad.thisWeek(from: model.runLog.runs), week.load > 0 {
+                    Section("This week") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Label(Format.distance(week.distanceMeters), systemImage: "figure.run")
+                                Spacer()
+                                Text("Load \(Int(week.load.rounded()))")
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let ratio = week.rampRatio {
+                                let percent = Int(((ratio - 1) * 100).rounded())
+                                Text("\(percent >= 0 ? "+" : "")\(percent)% vs 4-week average\(week.isRamping ? " — easy does it" : "")")
+                                    .font(.caption)
+                                    .foregroundStyle(week.isRamping ? .orange : .secondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+
                 if model.runLog.runs.isEmpty {
                     ContentUnavailableView(
                         "No workouts yet",

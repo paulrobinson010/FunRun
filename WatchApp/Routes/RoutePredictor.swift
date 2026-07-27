@@ -86,11 +86,26 @@ final class RoutePredictor: Sendable {
 
     private let graph: RouteGraph
     private let segments: SegmentIndex
+    /// Overall wall-clock speed across the stored history, for scaling
+    /// predictions to how today is actually going.
+    private let historicalAverageSpeed: Double?
 
     init(runs: [RouteRun]) {
         graph = RouteGraph.build(from: runs)
         let cutoff = Date().addingTimeInterval(-Double(Self.comparisonWindowDays) * 86_400)
         segments = SegmentIndex.build(from: runs.filter { $0.date >= cutoff }, graph: graph)
+        let totalMeters = runs.reduce(0) { $0 + $1.totalDistanceMeters }
+        let totalSeconds = runs.reduce(0) { $0 + $1.totalSeconds }
+        historicalAverageSpeed = (totalMeters > 1000 && totalSeconds > 0) ? totalMeters / totalSeconds : nil
+    }
+
+    /// A slow day honestly predicts slower finishes: expected times are
+    /// scaled by historical speed ÷ today's, clamped so one bad
+    /// kilometre doesn't distort the whole forecast. Calories stay
+    /// unscaled — they track distance far more than pace.
+    private func paceFactor(currentAverageSpeed: Double?) -> Double {
+        guard let historicalAverageSpeed, let currentAverageSpeed, currentAverageSpeed > 0.3 else { return 1 }
+        return min(1.3, max(0.75, historicalAverageSpeed / currentAverageSpeed))
     }
 
     /// Comparison for the segment just completed, against the window.
@@ -105,7 +120,8 @@ final class RoutePredictor: Sendable {
         )
     }
 
-    func prediction(at location: CLLocation, course: Double, energySoFar: Double) -> RoutePrediction? {
+    func prediction(at location: CLLocation, course: Double, energySoFar: Double, currentAverageSpeed: Double? = nil) -> RoutePrediction? {
+        let factor = paceFactor(currentAverageSpeed: currentAverageSpeed)
         let key = RouteGraph.GridKey(location.coordinate)
         for candidate in key.selfAndNeighbours {
             let branches = graph.branches(at: candidate, approachBearing: course)
@@ -114,11 +130,11 @@ final class RoutePredictor: Sendable {
                 RoutePrediction.Choice(
                     id: index,
                     direction: RelativeDirection(course: course, branchBearing: branch.bearing),
-                    finishInMinutes: max(1, Int((branch.expectedRemainingSeconds / 60).rounded())),
+                    finishInMinutes: max(1, Int((branch.expectedRemainingSeconds * factor / 60).rounded())),
                     totalCalories: Int((energySoFar + branch.expectedRemainingEnergy).rounded()),
                     probabilityPercent: Int((branch.probability * 100).rounded()),
                     sampleCount: branch.sampleCount,
-                    nextForkSeconds: segments.expectedSeconds(from: candidate, startBearing: branch.bearing)
+                    nextForkSeconds: segments.expectedSeconds(from: candidate, startBearing: branch.bearing).map { $0 * factor }
                 )
             }
             return RoutePrediction(nodeKey: candidate, choices: choices)

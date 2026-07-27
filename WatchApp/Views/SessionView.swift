@@ -37,6 +37,10 @@ struct MetricsView: View {
                 }
             }
 
+            if let split = workout.kmSplit {
+                KmSplitBanner(split: split)
+            }
+
             if let ghost = workout.ghostStatus {
                 GhostPanel(status: ghost)
             }
@@ -135,6 +139,29 @@ struct RoutePredictionPanel: View {
         }
         .padding(6)
         .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// Flashes at each kilometre: the split's moving time and its delta to
+/// the previous kilometre — quicker in green, slower in red.
+struct KmSplitBanner: View {
+    let split: KmSplit
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text("KM \(split.kilometre)")
+                .font(.footnote.weight(.bold))
+            Text(Format.duration(split.seconds))
+                .font(.system(.footnote, design: .rounded).weight(.semibold))
+            Spacer()
+            if let delta = split.deltaToPrevious {
+                Text(Format.signedDuration(delta))
+                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .foregroundStyle(delta <= 0 ? .green : .red)
+            }
+        }
+        .padding(6)
+        .background(.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
