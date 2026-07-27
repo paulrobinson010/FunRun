@@ -76,8 +76,9 @@ struct SegmentComparison: Equatable {
 
 /// Built once per session from route history; answers "am I at a known
 /// decision point, and what does each choice cost?" every tick.
-@MainActor
-final class RoutePredictor {
+/// Immutable after construction, so it can be built off the main actor —
+/// a year of tracks takes real work — and handed over when ready.
+final class RoutePredictor: Sendable {
     /// Segment comparisons ("vs typical", "to next fork") only look this
     /// far back, so they track current fitness; the decision-point graph
     /// itself uses all stored history.

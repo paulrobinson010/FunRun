@@ -44,7 +44,7 @@ your history.
   priced in probabilistically: if the left turn sometimes becomes a
   25-minute loop and sometimes a 40-minute one, you see the
   frequency-weighted expectation, and it sharpens as history grows.
-- **Ghost runs** — pick any recent route on the start screen and replay
+- **Ghost runs** — pick any route from the last 12 months and replay
   it against a ghost of yourself. On route, the wrist shows the upcoming
   turn, whether you're ahead or behind the ghost at this exact spot
   (green/red seconds), and the distance left — covering both "I don't
@@ -92,9 +92,11 @@ one side is asleep.
   cell is a decision point when past traversals — arriving on a similar
   heading — leave in two or more direction clusters with at least two
   runs each. Predictions therefore need a couple of passes over each
-  branch before they appear. Route history lives on the watch
-  (`route-history.json`, capped at 120 runs) since that's where
-  predictions run.
+  branch before they appear. Route history lives on the watch — 12
+  months, capped at 400 runs — as one file per run plus a small index
+  (`RouteHistoryStore`), so launch stays light; the route graph is built
+  off the main actor at session start and predictions switch on when
+  it's ready.
 - Requires an Apple Watch with GPS; permissions requested on first start:
   Health, Motion & Fitness, Location.
 

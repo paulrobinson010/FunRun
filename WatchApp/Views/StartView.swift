@@ -39,19 +39,23 @@ struct StartView: View {
                     .frame(height: 48)
                 }
 
-                if !workout.recentRoutes.isEmpty {
-                    Picker("Ghost", selection: $selectedGhostID) {
-                        Text("No ghost").tag(UUID?.none)
-                        ForEach(workout.recentRoutes) { route in
-                            Text(route.ghostLabel).tag(UUID?.some(route.id))
+                if !workout.ghostCandidates.isEmpty {
+                    NavigationLink {
+                        GhostPickerView(candidates: workout.ghostCandidates, selectedID: $selectedGhostID)
+                    } label: {
+                        HStack {
+                            Image(systemName: "figure.run.circle")
+                                .foregroundStyle(.purple)
+                            Text(selectedGhostLabel)
+                                .lineLimit(1)
                         }
+                        .font(.footnote)
                     }
-                    .frame(height: 48)
                 }
 
                 Button {
                     let shoe = sync.activeShoes.first { $0.id == selectedShoeID }
-                    let ghost = workout.recentRoutes.first { $0.id == selectedGhostID }
+                    let ghost = selectedGhostID.flatMap { workout.ghostRoute(withID: $0) }
                     Task {
                         workout.dismissFailure()
                         await workout.start(with: shoe, ghost: ghost)
@@ -80,12 +84,64 @@ struct StartView: View {
             }
         }
     }
+
+    private var selectedGhostLabel: String {
+        guard let meta = workout.ghostCandidates.first(where: { $0.id == selectedGhostID }) else {
+            return "No ghost"
+        }
+        return meta.ghostLabel
+    }
 }
 
-extension RouteRun {
-    /// "22 Jul · 7.51 km · 42:10" — enough to recognise a route by.
+/// The last 12 months of routes, newest first — pick one to race.
+struct GhostPickerView: View {
+    let candidates: [RouteMeta]
+    @Binding var selectedID: UUID?
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List {
+            Button {
+                selectedID = nil
+                dismiss()
+            } label: {
+                HStack {
+                    Text("No ghost")
+                    Spacer()
+                    if selectedID == nil {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            ForEach(candidates) { meta in
+                Button {
+                    selectedID = meta.id
+                    dismiss()
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(meta.date.formatted(.dateTime.day().month(.abbreviated).year(.twoDigits)))
+                            Spacer()
+                            if selectedID == meta.id {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                        Text("\(Format.distance(meta.totalDistanceMeters)) · \(Format.duration(meta.totalSeconds))")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Ghost")
+    }
+}
+
+extension RouteMeta {
+    /// "22 Jul 25 · 7.51 km" — enough to recognise a route by.
     var ghostLabel: String {
-        let day = date.formatted(.dateTime.day().month(.abbreviated))
-        return "\(day) · \(Format.distance(totalDistanceMeters)) · \(Format.duration(totalSeconds))"
+        let day = date.formatted(.dateTime.day().month(.abbreviated).year(.twoDigits))
+        return "\(day) · \(Format.distance(totalDistanceMeters))"
     }
 }

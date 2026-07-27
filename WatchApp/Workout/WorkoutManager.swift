@@ -46,9 +46,15 @@ final class WorkoutManager: NSObject {
     /// Live standing against the ghost, when this session races one.
     private(set) var ghostStatus: GhostStatus?
 
-    /// Past routes offered as ghosts on the start screen, newest first.
-    var recentRoutes: [RouteRun] {
-        Array(routeStore.runs.suffix(10).reversed())
+    /// Past routes offered as ghosts on the start screen — the last 12
+    /// months, newest first.
+    var ghostCandidates: [RouteMeta] {
+        routeStore.metas
+    }
+
+    /// Load a ghost's full track for the picker's selection.
+    func ghostRoute(withID id: UUID) -> RouteRun? {
+        routeStore.run(withID: id)
     }
 
     /// Called with the finished summary once the effort score is in.
@@ -160,7 +166,16 @@ final class WorkoutManager: NSObject {
             routePrediction = nil
             segmentComparison = nil
             lastDecisionPassage = nil
-            routePredictor = RoutePredictor(runs: routeStore.runs)
+            // A year of tracks is too much to crunch on the main actor;
+            // predictions simply stay off until the graph is ready
+            // (they need a GPS fix first anyway).
+            routePredictor = nil
+            Task.detached(priority: .utility) { [weak self] in
+                let predictor = RoutePredictor(runs: RouteHistoryStore.loadAllRuns())
+                await MainActor.run {
+                    self?.routePredictor = predictor
+                }
+            }
             routeRecorder.metrics = { [weak self] in
                 (self?.distanceMeters ?? 0, self?.activeEnergyKilocalories ?? 0)
             }
