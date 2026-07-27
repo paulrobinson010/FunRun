@@ -8,6 +8,11 @@ import Foundation
 /// seconds, so a couple of quick steps across a road or a short stumble
 /// doesn't flip the mode back and forth.
 struct ActivityClassifier {
+    /// What counts as a run is personal — this is the user's setting,
+    /// asked for on the watch (default 9 km/h ≈ 6'40"/km).
+    static let defaultRunPaceKmh: Double = 9
+    static let runPaceKey = "runPaceKmh"
+
     private(set) var mode: ActivityMode = .walking
 
     private var candidate: ActivityMode?
@@ -22,10 +27,16 @@ struct ActivityClassifier {
     private let runningCadence: Double = 140
     private let walkingCadence: Double = 128
 
-    /// Speed thresholds (m/s) used only when cadence is unavailable.
-    /// 2.3 m/s ≈ 7'15"/km — quicker than almost any walk.
-    private let runningSpeed: Double = 2.3
-    private let walkingSpeed: Double = 1.9
+    /// Speed thresholds (m/s) used only when cadence is unavailable —
+    /// derived from the user's run pace, with a hysteresis band below.
+    private let runningSpeed: Double
+    private let walkingSpeed: Double
+
+    init(runPaceKmh: Double = ActivityClassifier.defaultRunPaceKmh) {
+        let clamped = min(20, max(4, runPaceKmh))
+        runningSpeed = clamped / 3.6
+        walkingSpeed = runningSpeed * 0.85
+    }
 
     mutating func update(cadence: Double?, speed: Double, at now: Date) -> ActivityMode {
         let suggested: ActivityMode

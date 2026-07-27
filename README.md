@@ -11,7 +11,10 @@ your history.
 - **Auto walk/run detection** — cadence (steps per minute) is the primary
   signal, speed the fallback. A gait change has to hold for ~6 seconds
   before the mode flips, so crossing a road at a jog doesn't bounce the
-  display. The walk/run split is saved as segments on every run.
+  display. The walk/run split is saved as segments on every run. What
+  speed counts as running is yours to set — "Run pace" on the watch's
+  start screen, default 9 km/h (≈6'40"/km) — since one runner's easy jog
+  is another's sprint.
 - **Watch-first** — the whole workout runs on the watch as a HealthKit
   workout session (heart rate from the wrist, GPS-calibrated distance),
   and works even if the phone stays in a pocket or at home.

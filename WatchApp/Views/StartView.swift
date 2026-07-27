@@ -11,6 +11,7 @@ struct StartView: View {
     /// Remembers the last pair used, so forgetting to pick doesn't lose
     /// wear tracking.
     @AppStorage("lastShoeID") private var lastShoeID: String = ""
+    @AppStorage(ActivityClassifier.runPaceKey) private var runPaceKmh: Double = ActivityClassifier.defaultRunPaceKmh
 
     var body: some View {
         NavigationStack {
@@ -81,6 +82,18 @@ struct StartView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+
+                NavigationLink {
+                    RunPaceSettingView()
+                } label: {
+                    HStack {
+                        Image(systemName: "speedometer")
+                            .foregroundStyle(.secondary)
+                        Text("Run pace: \(runPaceKmh, specifier: "%.1f") km/h")
+                            .lineLimit(1)
+                    }
+                    .font(.footnote)
+                }
             }
         }
         .navigationTitle("FunRun")
@@ -98,6 +111,30 @@ struct StartView: View {
             return "No ghost"
         }
         return meta.ghostLabel
+    }
+}
+
+/// What speed counts as running *for you* — the walk/run auto-detection
+/// uses this when step cadence isn't available. Default 9 km/h.
+struct RunPaceSettingView: View {
+    @AppStorage(ActivityClassifier.runPaceKey) private var runPaceKmh: Double = ActivityClassifier.defaultRunPaceKmh
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Picker("Run pace", selection: $runPaceKmh) {
+                ForEach(Array(stride(from: 6.0, through: 14.0, by: 0.5)), id: \.self) { kmh in
+                    Text("\(kmh, specifier: "%.1f") km/h").tag(kmh)
+                }
+            }
+            .frame(height: 64)
+
+            Text("≈ \(Format.pace(3600 / runPaceKmh))/km · faster than this counts as running")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .navigationTitle("Run pace")
+        .padding(.horizontal, 4)
     }
 }
 

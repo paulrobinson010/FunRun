@@ -168,7 +168,10 @@ final class WorkoutManager: NSObject {
             session.startActivity(with: start)
             try await builder.beginCollection(at: start)
 
-            classifier.reset()
+            let storedPace = UserDefaults.standard.double(forKey: ActivityClassifier.runPaceKey)
+            classifier = ActivityClassifier(
+                runPaceKmh: storedPace > 0 ? storedPace : ActivityClassifier.defaultRunPaceKmh
+            )
             mode = .walking
             segments = []
             beginSegment(at: start)
