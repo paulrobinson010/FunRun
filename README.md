@@ -44,6 +44,10 @@ your history.
   priced in probabilistically: if the left turn sometimes becomes a
   25-minute loop and sometimes a 40-minute one, you see the
   frequency-weighted expectation, and it sharpens as history grows.
+- **Favourite routes** — swipe any route in the ghost picker to star and
+  name it ("Canal loop"). Favourites sit at the top of the picker, show
+  their name everywhere, and are exempt from the 12-month cleanup, so a
+  named route never ages out. Swipe a favourite to rename or unstar it.
 - **Ghost runs** — pick any route from the last 12 months and replay
   it against a ghost of yourself. On route, the wrist shows the upcoming
   turn, whether you're ahead or behind the ghost at this exact spot

@@ -57,6 +57,11 @@ final class WorkoutManager: NSObject {
         routeStore.run(withID: id)
     }
 
+    /// Name (or rename) a favourite route; nil removes the favourite.
+    func setFavourite(routeID: UUID, name: String?) {
+        routeStore.setFavourite(routeID, name: name)
+    }
+
     /// Called with the finished summary once the effort score is in.
     var onFinished: ((RunSummary) -> Void)?
 

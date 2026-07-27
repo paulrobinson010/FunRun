@@ -41,7 +41,7 @@ struct StartView: View {
 
                 if !workout.ghostCandidates.isEmpty {
                     NavigationLink {
-                        GhostPickerView(candidates: workout.ghostCandidates, selectedID: $selectedGhostID)
+                        GhostPickerView(workout: workout, selectedID: $selectedGhostID)
                     } label: {
                         HStack {
                             Image(systemName: "figure.run.circle")
@@ -93,12 +93,15 @@ struct StartView: View {
     }
 }
 
-/// The last 12 months of routes, newest first — pick one to race.
+/// Routes to race: named favourites first, then the last 12 months,
+/// newest first. Swipe a route to favourite (and name) it, swipe a
+/// favourite to rename or remove it.
 struct GhostPickerView: View {
-    let candidates: [RouteMeta]
+    let workout: WorkoutManager
     @Binding var selectedID: UUID?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var naming: RouteMeta?
 
     var body: some View {
         List {
@@ -114,33 +117,115 @@ struct GhostPickerView: View {
                     }
                 }
             }
-            ForEach(candidates) { meta in
-                Button {
-                    selectedID = meta.id
-                    dismiss()
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text(meta.date.formatted(.dateTime.day().month(.abbreviated).year(.twoDigits)))
-                            Spacer()
-                            if selectedID == meta.id {
-                                Image(systemName: "checkmark")
+
+            let favourites = workout.ghostCandidates.filter(\.isFavourite)
+                .sorted { ($0.favouriteName ?? "") < ($1.favouriteName ?? "") }
+            if !favourites.isEmpty {
+                Section("Favourites") {
+                    ForEach(favourites) { meta in
+                        routeRow(meta, title: meta.favouriteName ?? "")
+                            .swipeActions {
+                                Button {
+                                    naming = meta
+                                } label: {
+                                    Image(systemName: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    workout.setFavourite(routeID: meta.id, name: nil)
+                                } label: {
+                                    Image(systemName: "star.slash")
+                                }
                             }
-                        }
-                        Text("\(Format.distance(meta.totalDistanceMeters)) · \(Format.duration(meta.totalSeconds))")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
                     }
+                }
+            }
+
+            Section("Recent") {
+                ForEach(workout.ghostCandidates.filter { !$0.isFavourite }) { meta in
+                    routeRow(meta, title: meta.date.formatted(.dateTime.day().month(.abbreviated).year(.twoDigits)))
+                        .swipeActions {
+                            Button {
+                                naming = meta
+                            } label: {
+                                Image(systemName: "star.fill")
+                            }
+                            .tint(.yellow)
+                        }
                 }
             }
         }
         .navigationTitle("Ghost")
+        .sheet(item: $naming) { meta in
+            FavouriteNameView(meta: meta) { name in
+                workout.setFavourite(routeID: meta.id, name: name)
+            }
+        }
+    }
+
+    private func routeRow(_ meta: RouteMeta, title: String) -> some View {
+        Button {
+            selectedID = meta.id
+            dismiss()
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    if meta.isFavourite {
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.yellow)
+                    }
+                    Text(title)
+                        .lineLimit(1)
+                    Spacer()
+                    if selectedID == meta.id {
+                        Image(systemName: "checkmark")
+                    }
+                }
+                Text("\(Format.distance(meta.totalDistanceMeters)) · \(Format.duration(meta.totalSeconds))")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// Name a favourite route — dictation, scribble or keyboard.
+struct FavouriteNameView: View {
+    let meta: RouteMeta
+    let save: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+
+    init(meta: RouteMeta, save: @escaping (String) -> Void) {
+        self.meta = meta
+        self.save = save
+        _name = State(initialValue: meta.favouriteName ?? "\(Format.distance(meta.totalDistanceMeters)) loop")
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            TextField("Route name", text: $name)
+            Button {
+                save(name)
+                dismiss()
+            } label: {
+                Label("Save", systemImage: "star.fill")
+            }
+            .tint(.yellow)
+            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding(.horizontal, 4)
     }
 }
 
 extension RouteMeta {
-    /// "22 Jul 25 · 7.51 km" — enough to recognise a route by.
+    /// The favourite's name, or "22 Jul 25 · 7.51 km" — enough to
+    /// recognise a route by.
     var ghostLabel: String {
+        if let favouriteName {
+            return favouriteName
+        }
         let day = date.formatted(.dateTime.day().month(.abbreviated).year(.twoDigits))
         return "\(day) · \(Format.distance(totalDistanceMeters))"
     }

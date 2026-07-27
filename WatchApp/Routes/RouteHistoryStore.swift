@@ -8,6 +8,11 @@ struct RouteMeta: Codable, Identifiable {
     var date: Date
     var totalSeconds: TimeInterval
     var totalDistanceMeters: Double
+    /// Set when the user favourites this route. Favourites are named,
+    /// listed first in the ghost picker, and never pruned.
+    var favouriteName: String? = nil
+
+    var isFavourite: Bool { favouriteName != nil }
 }
 
 /// Twelve months of past routes, kept on the watch — the training data
@@ -41,6 +46,19 @@ final class RouteHistoryStore {
             totalDistanceMeters: run.totalDistanceMeters
         ), at: 0)
         prune()
+        saveIndex()
+    }
+
+    var favourites: [RouteMeta] {
+        metas.filter(\.isFavourite).sorted { ($0.favouriteName ?? "") < ($1.favouriteName ?? "") }
+    }
+
+    /// Name (or rename) a route as a favourite; nil removes it from
+    /// favourites, returning it to normal 12-month retention.
+    func setFavourite(_ id: UUID, name: String?) {
+        guard let index = metas.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        metas[index].favouriteName = (trimmed?.isEmpty ?? true) ? nil : trimmed
         saveIndex()
     }
 
@@ -99,9 +117,13 @@ final class RouteHistoryStore {
         let cutoff = Date().addingTimeInterval(-Double(Self.retentionDays) * 86_400)
         var keep: [RouteMeta] = []
         var dropped: [RouteMeta] = []
+        var ordinaryCount = 0
         for meta in metas {
-            if meta.date >= cutoff, keep.count < Self.maximumRuns {
+            if meta.isFavourite {
                 keep.append(meta)
+            } else if meta.date >= cutoff, ordinaryCount < Self.maximumRuns {
+                keep.append(meta)
+                ordinaryCount += 1
             } else {
                 dropped.append(meta)
             }
