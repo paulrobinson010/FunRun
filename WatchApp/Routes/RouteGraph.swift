@@ -63,6 +63,10 @@ struct RouteGraph {
 
     private var nodes: [GridKey: [Traversal]] = [:]
 
+    /// Cells that are decision points for at least one approach —
+    /// approach-agnostic, used to slice runs into segments.
+    private(set) var decisionCells: Set<GridKey> = []
+
     static func build(from runs: [RouteRun]) -> RouteGraph {
         var graph = RouteGraph()
         for run in runs {
@@ -82,6 +86,13 @@ struct RouteGraph {
                     remainingSeconds: remainingSeconds,
                     remainingEnergy: max(0, remainingEnergy)
                 ))
+            }
+        }
+        for (key, traversals) in graph.nodes {
+            let clusters = clusterBearings(traversals.map(\.outgoingBearing))
+                .filter { $0.count >= minimumSamplesPerBranch }
+            if clusters.count >= 2 {
+                graph.decisionCells.insert(key)
             }
         }
         return graph
@@ -115,13 +126,13 @@ struct RouteGraph {
 
     // MARK: - Track → cell path
 
-    private struct CellStep {
+    struct CellStep {
         var key: GridKey
         var point: TrackPoint
         var outgoingBearing: Double?
     }
 
-    private static func cellPath(for run: RouteRun) -> [CellStep] {
+    static func cellPath(for run: RouteRun) -> [CellStep] {
         var steps: [CellStep] = []
         for point in run.points {
             let key = GridKey(CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude))

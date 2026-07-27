@@ -40,6 +40,9 @@ final class WorkoutManager: NSObject {
     /// Non-nil while standing at a known intersection: what each choice
     /// is expected to cost, from past runs through this exact spot.
     private(set) var routePrediction: RoutePrediction?
+    /// How the segment just completed compares to the last 28 days of
+    /// the same stretch. Shown briefly, then auto-hidden.
+    private(set) var segmentComparison: SegmentComparison?
 
     /// Called with the finished summary once the effort score is in.
     var onFinished: ((RunSummary) -> Void)?
@@ -62,6 +65,10 @@ final class WorkoutManager: NSObject {
     private let routeRecorder = RouteRecorder()
     private let routeStore = RouteHistoryStore()
     private var routePredictor: RoutePredictor?
+    /// The last decision point passed, and the wall-clock offset when it
+    /// was — start of the segment currently being run.
+    private var lastDecisionPassage: (key: RouteGraph.GridKey, wallElapsed: TimeInterval)?
+    private let comparisonDisplaySeconds: TimeInterval = 25
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
     private var classifier = ActivityClassifier()
@@ -141,6 +148,8 @@ final class WorkoutManager: NSObject {
 
             activeEnergyKilocalories = 0
             routePrediction = nil
+            segmentComparison = nil
+            lastDecisionPassage = nil
             routePredictor = RoutePredictor(runs: routeStore.runs)
             routeRecorder.metrics = { [weak self] in
                 (self?.distanceMeters ?? 0, self?.activeEnergyKilocalories ?? 0)
@@ -315,8 +324,26 @@ final class WorkoutManager: NSObject {
         let fresh = predictor.prediction(at: location, course: course, energySoFar: activeEnergyKilocalories)
         if let fresh, fresh.nodeKey != routePrediction?.nodeKey {
             WKInterfaceDevice.current().play(.directionUp)
+            recordDecisionPassage(at: fresh.nodeKey, predictor: predictor)
         }
         routePrediction = fresh
+
+        if let comparison = segmentComparison,
+           Date().timeIntervalSince(comparison.at) > comparisonDisplaySeconds {
+            segmentComparison = nil
+        }
+    }
+
+    /// Arriving at a fork closes the segment begun at the previous one:
+    /// compare it against the recent history of the same stretch, then
+    /// start timing the next segment from here.
+    private func recordDecisionPassage(at key: RouteGraph.GridKey, predictor: RoutePredictor) {
+        let wallElapsed = Date().timeIntervalSince(startDate)
+        defer { lastDecisionPassage = (key, wallElapsed) }
+        guard let previous = lastDecisionPassage, previous.key != key else { return }
+        let seconds = wallElapsed - previous.wallElapsed
+        guard seconds >= SegmentIndex.minimumSegmentSeconds else { return }
+        segmentComparison = predictor.segmentComparison(from: previous.key, to: key, seconds: seconds)
     }
 
     /// Live speed: the pedometer's pace when fresh, otherwise the slope of
@@ -526,6 +553,8 @@ final class WorkoutManager: NSObject {
         averageHeartRate = nil
         routePredictor = nil
         routePrediction = nil
+        segmentComparison = nil
+        lastDecisionPassage = nil
         activeEnergyKilocalories = 0
         shoe = nil
         segments = []

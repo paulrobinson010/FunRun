@@ -37,6 +37,10 @@ struct MetricsView: View {
                 }
             }
 
+            if let comparison = workout.segmentComparison {
+                SegmentComparisonBanner(comparison: comparison)
+            }
+
             if let prediction = workout.routePrediction {
                 RoutePredictionPanel(prediction: prediction)
             }
@@ -108,9 +112,62 @@ struct RoutePredictionPanel: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            if prediction.choices.contains(where: { $0.nextForkSeconds != nil }) {
+                HStack(spacing: 6) {
+                    Text("next fork")
+                        .foregroundStyle(.secondary)
+                    ForEach(prediction.choices.prefix(3)) { choice in
+                        if let seconds = choice.nextForkSeconds {
+                            HStack(spacing: 1) {
+                                Image(systemName: choice.direction.symbolName)
+                                Text(Format.duration(seconds))
+                            }
+                        }
+                    }
+                }
+                .font(.caption2)
+            }
         }
         .padding(6)
         .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// Flashes up when a segment between two forks completes: this pass's
+/// time, the delta against the 28-day typical for the stretch, and a
+/// medal when it beat every recent pass.
+struct SegmentComparisonBanner: View {
+    let comparison: SegmentComparison
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "flag.checkered")
+                .font(.footnote)
+            Text(Format.duration(comparison.seconds))
+                .font(.system(.footnote, design: .rounded).weight(.semibold))
+            if let delta = comparison.deltaSeconds {
+                Text(Format.signedDuration(delta))
+                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .foregroundStyle(delta <= 0 ? .green : .red)
+            } else {
+                Text("no recent history")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if comparison.isBest {
+                Image(systemName: "medal.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.yellow)
+            } else if comparison.sampleCount > 0 {
+                Text("×\(comparison.sampleCount)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(6)
+        .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

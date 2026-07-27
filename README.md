@@ -44,6 +44,13 @@ your history.
   priced in probabilistically: if the left turn sometimes becomes a
   25-minute loop and sometimes a 40-minute one, you see the
   frequency-weighted expectation, and it sharpens as history grows.
+- **Segment comparisons** — the stretch between two decision points is a
+  segment. Completing one flashes your time with a signed delta against
+  your last 28 days on that same stretch (green faster, red slower), and
+  a medal when you beat every recent pass. At a fork, each branch also
+  quotes the expected time to the next fork. The 28-day window keeps
+  comparisons honest about current fitness; the decision-point map
+  itself uses all stored history.
 
 ## Project layout
 

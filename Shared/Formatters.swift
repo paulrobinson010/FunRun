@@ -27,6 +27,11 @@ enum Format {
             : String(format: "%d:%02d", m, s)
     }
 
+    /// "+0:08" / "−0:12" — a delta against a reference time.
+    static func signedDuration(_ seconds: TimeInterval) -> String {
+        (seconds < 0 ? "−" : "+") + duration(abs(seconds))
+    }
+
     static func heartRate(_ bpm: Double?) -> String {
         guard let bpm, bpm > 0 else { return "—" }
         return "\(Int(bpm.rounded()))"

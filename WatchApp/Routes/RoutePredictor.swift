@@ -15,6 +15,9 @@ struct RoutePrediction: Equatable {
         /// How often past runs went this way from here.
         var probabilityPercent: Int
         var sampleCount: Int
+        /// Expected time from here to the next fork, going this way —
+        /// from the comparison window, when it has enough passes.
+        var nextForkSeconds: TimeInterval?
     }
 
     /// Which grid cell produced this prediction — used to notice arriving
@@ -58,14 +61,47 @@ enum RelativeDirection: Equatable {
     }
 }
 
+/// How a just-finished segment (previous fork → this one) compares to the
+/// recent history of the same stretch.
+struct SegmentComparison: Equatable {
+    var seconds: TimeInterval
+    /// This pass minus the window average; negative means faster. Nil
+    /// when the stretch has no recent history to compare against.
+    var deltaSeconds: TimeInterval?
+    /// True when this pass beat every recent pass of the stretch.
+    var isBest: Bool
+    var sampleCount: Int
+    var at: Date
+}
+
 /// Built once per session from route history; answers "am I at a known
 /// decision point, and what does each choice cost?" every tick.
 @MainActor
 final class RoutePredictor {
+    /// Segment comparisons ("vs typical", "to next fork") only look this
+    /// far back, so they track current fitness; the decision-point graph
+    /// itself uses all stored history.
+    static let comparisonWindowDays = 28
+
     private let graph: RouteGraph
+    private let segments: SegmentIndex
 
     init(runs: [RouteRun]) {
         graph = RouteGraph.build(from: runs)
+        let cutoff = Date().addingTimeInterval(-Double(Self.comparisonWindowDays) * 86_400)
+        segments = SegmentIndex.build(from: runs.filter { $0.date >= cutoff }, graph: graph)
+    }
+
+    /// Comparison for the segment just completed, against the window.
+    func segmentComparison(from: RouteGraph.GridKey, to: RouteGraph.GridKey, seconds: TimeInterval) -> SegmentComparison {
+        let stats = segments.stats(from: from, to: to)
+        return SegmentComparison(
+            seconds: seconds,
+            deltaSeconds: stats.map { seconds - $0.averageSeconds },
+            isBest: stats.map { seconds < $0.bestSeconds } ?? false,
+            sampleCount: stats?.count ?? 0,
+            at: Date()
+        )
     }
 
     func prediction(at location: CLLocation, course: Double, energySoFar: Double) -> RoutePrediction? {
@@ -80,7 +116,8 @@ final class RoutePredictor {
                     finishInMinutes: max(1, Int((branch.expectedRemainingSeconds / 60).rounded())),
                     totalCalories: Int((energySoFar + branch.expectedRemainingEnergy).rounded()),
                     probabilityPercent: Int((branch.probability * 100).rounded()),
-                    sampleCount: branch.sampleCount
+                    sampleCount: branch.sampleCount,
+                    nextForkSeconds: segments.expectedSeconds(from: candidate, startBearing: branch.bearing)
                 )
             }
             return RoutePrediction(nodeKey: candidate, choices: choices)
