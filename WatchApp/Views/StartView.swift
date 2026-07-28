@@ -46,6 +46,10 @@ struct StartView: View {
                         }
                     }
                     .frame(height: 48)
+                } else {
+                    Label("Shoes sync from the iPhone app", systemImage: "shoe.2")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Picker("Target", selection: $targetMinutes) {

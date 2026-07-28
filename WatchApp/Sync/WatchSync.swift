@@ -32,6 +32,24 @@ final class WatchSync: NSObject, WCSessionDelegate {
             WCSession.default.transferUserInfo([SyncKey.restoreRequest: true])
         }
         backupPendingRuns()
+        requestShoesIfNeeded()
+    }
+
+    /// A reinstalled watch app starts with an empty received context, so
+    /// the shoe list stays missing until the phone happens to push it
+    /// again — ask for it instead of waiting. sendMessage wakes the
+    /// phone app in the background when it's reachable; the queued
+    /// transfer covers the rest.
+    func requestShoesIfNeeded() {
+        guard shoes.isEmpty, WCSession.default.activationState == .activated else { return }
+        let payload = [SyncKey.shoesRequest: true]
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(payload, replyHandler: nil) { _ in
+                WCSession.default.transferUserInfo(payload)
+            }
+        } else {
+            WCSession.default.transferUserInfo(payload)
+        }
     }
 
     func sendFavouriteUpdate(id: UUID, name: String?) {
@@ -108,6 +126,7 @@ final class WatchSync: NSObject, WCSessionDelegate {
         Task { @MainActor in
             self.readShoes(from: context)
             self.backupPendingRuns()
+            self.requestShoesIfNeeded()
         }
     }
 

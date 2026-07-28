@@ -11,6 +11,9 @@ enum SyncKey {
     /// Watch → phone: asks for every backed-up route to be sent back
     /// (fresh watch, or history wiped).
     static let restoreRequest = "restoreRequest"
+    /// Watch → phone: the watch has no shoe list (fresh install) and
+    /// wants the application context pushed again.
+    static let shoesRequest = "shoesRequest"
     /// Watch → phone: a favourite was named/renamed/removed.
     static let favouriteID = "favouriteID"
     static let favouriteName = "favouriteName"

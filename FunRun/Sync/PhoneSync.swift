@@ -19,6 +19,8 @@ final class PhoneSync: NSObject, WCSessionDelegate {
     var onRestoreRequested: (() -> Void)?
     /// A favourite was named/renamed/removed on the watch.
     var onFavouriteUpdated: ((String, String?) -> Void)?
+    /// The watch lost its shoe list (reinstall) and wants it re-pushed.
+    var onShoesRequested: (() -> Void)?
 
     /// Send backed-up routes to the watch (restore).
     func transfer(files: [(url: URL, metadata: [String: Any])]) {
@@ -65,6 +67,10 @@ final class PhoneSync: NSObject, WCSessionDelegate {
             Task { @MainActor in
                 self.onRestoreRequested?()
             }
+        } else if userInfo[SyncKey.shoesRequest] != nil {
+            Task { @MainActor in
+                self.onShoesRequested?()
+            }
         } else if let idString = userInfo[SyncKey.favouriteID] as? String {
             let name = userInfo[SyncKey.favouriteName] as? String
             Task { @MainActor in
@@ -89,6 +95,14 @@ final class PhoneSync: NSObject, WCSessionDelegate {
         }
         Task { @MainActor in
             self.onRouteFileReceived?(metadata)
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        if message[SyncKey.shoesRequest] != nil {
+            Task { @MainActor in
+                self.onShoesRequested?()
+            }
         }
     }
 

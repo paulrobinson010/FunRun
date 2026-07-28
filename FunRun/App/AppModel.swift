@@ -34,6 +34,9 @@ final class AppModel {
         sync.onFavouriteUpdated = { [weak self] idString, name in
             self?.routeBackup.setFavourite(idString: idString, name: name)
         }
+        sync.onShoesRequested = { [weak self] in
+            self?.pushShoes()
+        }
         pushShoes()
     }
 
