@@ -24,11 +24,11 @@ struct StartView: View {
 
     private var startContent: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 Image("Logo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 54, height: 54)
+                    .frame(width: 36, height: 36)
                     .clipShape(Circle())
 
                 if case .failed(let message) = workout.phase {
@@ -117,7 +117,6 @@ struct StartView: View {
                 }
             }
         }
-        .navigationTitle("Gaitway")
         .onAppear {
             workout.requestLocationPermission()
             if selectedShoeID == nil {
