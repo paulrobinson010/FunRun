@@ -137,7 +137,7 @@ one side is asleep.
 ## Website
 
 The Gaitway site at
-[funrun.robbo-online.uk](https://funrun.robbo-online.uk) lives
+[gaitway.robbo-online.uk](https://gaitway.robbo-online.uk) lives
 in `docs/` and deploys via GitHub Actions
 (`.github/workflows/pages.yml`) on every push to `main` that touches it.
 The brand comes from `docs/applogo.png` — near-black, electric cyan and
