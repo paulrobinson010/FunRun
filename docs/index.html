@@ -143,6 +143,70 @@ h2{
   .fork-chip{font-size:.7rem;padding:6px 9px;bottom:-10px}
 }
 
+/* Pick a branch: hover or tap commits to it, the other way dims.
+   (Chips finish an opacity/transform animation with fill:forwards, so
+   dimming/emphasis uses filter and box-shadow, which stay ours.) */
+.fork-viz .bl,.fork-viz .br,.fork-viz .runner{transition:opacity .3s ease}
+.fork-chip{cursor:pointer;transition:filter .3s ease,border-color .3s ease,box-shadow .3s ease}
+.fork-viz .hit{fill:none;stroke:transparent;stroke-width:34;pointer-events:stroke;cursor:pointer}
+.fork-viz[data-pick="left"] .br{opacity:.15}
+.fork-viz[data-pick="left"] .r-right{opacity:.08}
+.fork-viz[data-pick="left"] .fork-chip.right{filter:brightness(.45)}
+.fork-viz[data-pick="left"] .fork-chip.left{border-color:var(--cyan);box-shadow:0 0 28px rgba(43,217,255,.35)}
+.fork-viz[data-pick="right"] .bl{opacity:.15}
+.fork-viz[data-pick="right"] .r-left,.fork-viz[data-pick="right"] .ghost{opacity:.06}
+.fork-viz[data-pick="right"] .fork-chip.left{filter:brightness(.45)}
+.fork-viz[data-pick="right"] .fork-chip.right{border-color:var(--magenta);box-shadow:0 0 28px rgba(255,46,158,.35)}
+.fork-viz .ghost{fill:var(--cyan);opacity:.35;filter:drop-shadow(0 0 5px rgba(43,217,255,.8))}
+
+/* The page is one run: a route spine fills as you scroll, with your
+   position as a runner dot and each section a waypoint on the route. */
+.spine{display:none}
+@media (min-width:1150px){
+  main{position:relative}
+  .spine{
+    display:block;position:absolute;left:-34px;top:20px;bottom:20px;width:3px;
+    background:rgba(255,255,255,.07);border-radius:3px;
+  }
+  .spine .fill{
+    position:absolute;left:0;top:0;width:100%;height:0;border-radius:3px;
+    background:linear-gradient(180deg,var(--cyan),var(--magenta));
+    box-shadow:0 0 14px rgba(43,217,255,.35);
+  }
+  .spine .dot{
+    position:absolute;left:50%;top:0;transform:translate(-50%,-50%);
+    width:11px;height:11px;border-radius:50%;
+    background:#fff;box-shadow:0 0 12px rgba(255,255,255,.9);
+  }
+  section h2{position:relative}
+  section h2::before{
+    content:"";position:absolute;left:-61px;top:50%;transform:translateY(-50%);
+    width:11px;height:11px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--cyan);
+    box-shadow:0 0 10px rgba(43,217,255,.35);
+  }
+  section:nth-of-type(even) h2::before{border-color:var(--magenta);box-shadow:0 0 10px rgba(255,46,158,.3)}
+}
+
+/* KM waypoint markers on section headings */
+h2 .km{
+  display:inline-block;vertical-align:3px;margin-right:12px;
+  font-size:.68rem;font-weight:600;letter-spacing:.1em;
+  color:var(--cyan);border:1px solid rgba(43,217,255,.35);
+  padding:3px 10px;border-radius:999px;background:rgba(43,217,255,.06);
+}
+section:nth-of-type(even) h2 .km{
+  color:var(--magenta);border-color:rgba(255,46,158,.35);background:rgba(255,46,158,.06);
+}
+
+/* Finish line */
+.finish{display:flex;align-items:center;gap:14px;max-width:420px;margin:0 auto 10px;font-size:1.2rem}
+.finish .line{
+  flex:1;height:3px;border-radius:2px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.25) 0 7px,transparent 7px 14px);
+}
+.finish-note{color:var(--muted);font-size:.85rem;margin-bottom:20px}
+
 /* Scroll-in reveals */
 .rv{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
 .rv.in{opacity:1;transform:none}
@@ -254,19 +318,25 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
         <path class="stem" pathLength="1" d="M380 6 V118"/>
         <path class="bl" pathLength="1" d="M380 118 C320 183 240 213 130 250"/>
         <path class="br" pathLength="1" d="M380 118 C440 183 520 213 630 250"/>
+        <path class="hit" data-side="left" d="M380 118 C320 183 240 213 130 250"/>
+        <path class="hit" data-side="right" d="M380 118 C440 183 520 213 630 250"/>
         <circle class="halo" cx="380" cy="118" r="10"/>
         <circle class="node" cx="380" cy="118" r="8"/>
-        <circle class="runner" r="5">
+        <circle class="runner r-left" r="5">
           <animateMotion begin="2s" dur="3.6s" repeatCount="indefinite"
             path="M380 6 V118 C320 183 240 213 130 250"/>
         </circle>
-        <circle class="runner" r="5">
+        <circle class="runner ghost" r="5">
+          <animateMotion begin="2.55s" dur="3.6s" repeatCount="indefinite"
+            path="M380 6 V118 C320 183 240 213 130 250"/>
+        </circle>
+        <circle class="runner r-right" r="5">
           <animateMotion begin="3.4s" dur="5s" repeatCount="indefinite"
             path="M380 6 V118 C440 183 520 213 630 250"/>
         </circle>
       </svg>
-      <div class="fork-chip left"><span class="dir">←</span> <b>25 min</b> · 550 cal<span class="sub">70% of your runs go this way</span></div>
-      <div class="fork-chip right"><span class="dir">→</span> <b>45 min</b> · 800 cal<span class="sub">30% · the long loop</span></div>
+      <div class="fork-chip left" data-side="left"><span class="dir">←</span> <b>25 min</b> · 550 cal<span class="sub">70% of your runs go this way</span></div>
+      <div class="fork-chip right" data-side="right"><span class="dir">→</span> <b>45 min</b> · 800 cal<span class="sub">30% · the long loop</span></div>
     </div>
     <p class="fork-caption">At every fork you've run before, Gaitway knows what each way home costs —
     learned from your own runs, shown on your wrist as you arrive.</p>
@@ -274,9 +344,10 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
 </header>
 
 <main class="wrap">
+<div class="spine" aria-hidden="true"><div class="fill"></div><div class="dot"></div></div>
 
 <section>
-  <h2>Just move</h2>
+  <h2><span class="km">KM 1</span>Just move</h2>
   <div class="rule"></div>
   <p class="lede">No mode picking, no fiddling mid-run. Start it and go — Gaitway sorts the rest out from how you actually move.</p>
   <div class="grid">
@@ -305,7 +376,7 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
 </section>
 
 <section>
-  <h2>It learns your routes</h2>
+  <h2><span class="km">KM 2</span>It learns your routes</h2>
   <div class="rule"></div>
   <p class="lede">Every run teaches it your local map. The longer you use it, the smarter your wrist gets.</p>
   <div class="grid">
@@ -333,7 +404,7 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
 </section>
 
 <section>
-  <h2>And the rest of the kit</h2>
+  <h2><span class="km">KM 3</span>And the rest of the kit</h2>
   <div class="rule"></div>
   <div class="grid">
     <div class="card">
@@ -369,7 +440,7 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
 </section>
 
 <section>
-  <h2>See it running</h2>
+  <h2><span class="km">KM 4</span>See it running</h2>
   <div class="rule"></div>
   <div class="shots">
     <figure class="watch">
@@ -403,6 +474,8 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
 
 <footer>
   <div class="wrap">
+    <div class="finish" aria-hidden="true"><span class="line"></span>🏁<span class="line"></span></div>
+    <p class="finish-note">Run complete — thanks for scrolling. 0 servers involved.</p>
     <img class="foot-logo" src="applogo.png" alt="">
     <p>Gaitway · <a href="privacy.html">Privacy</a> · <a href="https://github.com/paulrobinson010/FunRun">GitHub</a></p>
   </div>
@@ -424,6 +497,48 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
     el.classList.add("rv");
     io.observe(el);
   });
+})();
+
+/* Pick a branch at the hero fork */
+(function () {
+  var viz = document.querySelector(".fork-viz");
+  if (!viz) return;
+  ["left", "right"].forEach(function (side) {
+    viz.querySelectorAll('[data-side="' + side + '"]').forEach(function (el) {
+      el.addEventListener("mouseenter", function () { viz.dataset.pick = side; });
+      el.addEventListener("mouseleave", function () { delete viz.dataset.pick; });
+      el.addEventListener("click", function () {
+        viz.dataset.pick = viz.dataset.pick === side ? "" : side;
+      });
+    });
+  });
+})();
+
+/* Route spine: fill tracks scroll position, dot = you */
+(function () {
+  var spine = document.querySelector(".spine");
+  if (!spine) return;
+  var fill = spine.querySelector(".fill");
+  var dot = spine.querySelector(".dot");
+  var ticking = false;
+  function update() {
+    ticking = false;
+    var doc = document.documentElement;
+    var max = doc.scrollHeight - window.innerHeight;
+    var progress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+    var h = spine.clientHeight * progress;
+    fill.style.height = h + "px";
+    dot.style.top = h + "px";
+  }
+  function onScroll() {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(update);
+    }
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  update();
 })();
 </script>
 
