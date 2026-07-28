@@ -31,6 +31,15 @@ final class AppModel {
         sync.push(shoeStore.shoes)
     }
 
+    /// Delete a run: the stored summary goes, and its wear comes back off
+    /// the shoes it was logged against. (The HealthKit workout is
+    /// untouched — that lives in Apple Health under the user's control.)
+    func delete(_ run: RunSummary) {
+        runLog.remove(run)
+        shoeStore.revert(run)
+        pushShoes()
+    }
+
     /// Tell the user when a pair crosses 90% or 100% of its replacement
     /// distance — once per threshold, at the moment the run that crossed
     /// it arrives.

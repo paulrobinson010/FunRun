@@ -123,6 +123,11 @@ final class WorkoutManager: NSObject {
     private var lastMovementAt = Date()
     private var pendingAutoPause = false
     private var autoPauseCount = 0
+    /// Auto-pause only arms once movement has actually been seen: at the
+    /// start GPS and the pedometer take several seconds to warm up, and
+    /// without this the session pauses on the doorstep before the first
+    /// step registers.
+    private var hasDetectedMovement = false
 
     private var segments: [RunSegment] = []
     private var segmentStart: Date?
@@ -176,6 +181,7 @@ final class WorkoutManager: NSObject {
             segments = []
             beginSegment(at: start)
             autoPauseCount = 0
+            hasDetectedMovement = false
             lastMovementAt = start
             distanceMeters = 0
             heartRate = 0
@@ -352,11 +358,12 @@ final class WorkoutManager: NSObject {
         speedMetersPerSecond = speed
         if speed > stopSpeed {
             lastMovementAt = now
+            hasDetectedMovement = true
         }
 
         switch phase {
         case .active:
-            if now.timeIntervalSince(lastMovementAt) >= autoPauseAfter {
+            if hasDetectedMovement, now.timeIntervalSince(lastMovementAt) >= autoPauseAfter {
                 pendingAutoPause = true
                 autoPauseCount += 1
                 session?.pause()

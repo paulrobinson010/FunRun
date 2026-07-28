@@ -24,69 +24,74 @@ struct MetricsView: View {
     let workout: WorkoutManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Label(workout.mode.label, systemImage: workout.mode.symbolName)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(workout.mode == .running ? .green : .cyan)
-                Spacer()
-                if workout.isAutoPaused {
-                    Text("PAUSED")
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(.yellow)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Label(workout.mode.label, systemImage: workout.mode.symbolName)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(workout.mode == .running ? .green : .cyan)
+                    Spacer()
+                    if workout.isAutoPaused {
+                        Text("PAUSED")
+                            .font(.footnote.weight(.bold))
+                            .foregroundStyle(.yellow)
+                    }
                 }
+
+                if let split = workout.kmSplit {
+                    KmSplitBanner(split: split)
+                }
+
+                if let ghost = workout.ghostStatus {
+                    GhostPanel(status: ghost)
+                }
+
+                if let comparison = workout.segmentComparison {
+                    SegmentComparisonBanner(comparison: comparison)
+                }
+
+                if let prediction = workout.routePrediction {
+                    RoutePredictionPanel(prediction: prediction)
+                }
+
+                Text(Format.duration(workout.elapsed))
+                    .font(.system(.title, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.yellow)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                metricRow(
+                    value: Format.pace(workout.currentPaceSecondsPerKm),
+                    unit: "/km",
+                    icon: "speedometer"
+                )
+                metricRow(
+                    value: Format.distance(workout.distanceMeters),
+                    unit: "",
+                    icon: "point.topleft.down.curvedto.point.bottomright.up"
+                )
+                metricRow(
+                    value: Format.heartRate(workout.heartRate),
+                    unit: "bpm",
+                    icon: "heart.fill",
+                    iconColor: .red
+                )
             }
-
-            if let split = workout.kmSplit {
-                KmSplitBanner(split: split)
-            }
-
-            if let ghost = workout.ghostStatus {
-                GhostPanel(status: ghost)
-            }
-
-            if let comparison = workout.segmentComparison {
-                SegmentComparisonBanner(comparison: comparison)
-            }
-
-            if let prediction = workout.routePrediction {
-                RoutePredictionPanel(prediction: prediction)
-            }
-
-            Text(Format.duration(workout.elapsed))
-                .font(.system(.title2, design: .rounded).weight(.semibold))
-                .foregroundStyle(.yellow)
-
-            metricRow(
-                value: Format.pace(workout.currentPaceSecondsPerKm),
-                unit: "/km",
-                icon: "speedometer"
-            )
-            metricRow(
-                value: Format.distance(workout.distanceMeters),
-                unit: "",
-                icon: "point.topleft.down.curvedto.point.bottomright.up"
-            )
-            metricRow(
-                value: Format.heartRate(workout.heartRate),
-                unit: "bpm",
-                icon: "heart.fill",
-                iconColor: .red
-            )
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 4)
+            .opacity(workout.isAutoPaused ? 0.6 : 1)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 4)
-        .opacity(workout.isAutoPaused ? 0.6 : 1)
     }
 
     private func metricRow(value: String, unit: String, icon: String, iconColor: Color = .secondary) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
             Image(systemName: icon)
-                .font(.footnote)
+                .font(.caption2)
                 .foregroundStyle(iconColor)
-                .frame(width: 18)
             Text(value)
-                .font(.system(.title3, design: .rounded).weight(.medium))
+                .font(.system(.title2, design: .rounded).weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             if !unit.isEmpty {
                 Text(unit)
                     .font(.footnote)

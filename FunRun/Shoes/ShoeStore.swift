@@ -57,6 +57,17 @@ final class ShoeStore {
         return nil
     }
 
+    /// Undo a run's wear when the run is deleted, so a false start or
+    /// test session doesn't age the pair it was logged against.
+    func revert(_ run: RunSummary) {
+        guard appliedRunIDs.contains(run.id) else { return }
+        appliedRunIDs.remove(run.id)
+        if let shoeID = run.shoeID, let index = shoes.firstIndex(where: { $0.id == shoeID }) {
+            shoes[index].distanceMeters = max(0, shoes[index].distanceMeters - run.distanceMeters)
+        }
+        save()
+    }
+
     // MARK: - Persistence
 
     private struct Snapshot: Codable {

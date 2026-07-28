@@ -41,8 +41,18 @@ struct HistoryView: View {
                         RunRow(run: run)
                     }
                 }
+                .onDelete { offsets in
+                    for run in offsets.map({ model.runLog.runs[$0] }) {
+                        model.delete(run)
+                    }
+                }
             }
             .navigationTitle("History")
+            .toolbar {
+                if !model.runLog.runs.isEmpty {
+                    EditButton()
+                }
+            }
         }
     }
 }

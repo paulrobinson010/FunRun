@@ -18,6 +18,11 @@ final class RunLog {
         save()
     }
 
+    func remove(_ run: RunSummary) {
+        runs.removeAll { $0.id == run.id }
+        save()
+    }
+
     // MARK: - Persistence
 
     private var fileURL: URL {
