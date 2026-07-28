@@ -98,7 +98,7 @@ struct StartView: View {
                 }
             }
         }
-        .navigationTitle("FunRun")
+        .navigationTitle("Gaitway")
         .onAppear {
             if selectedShoeID == nil {
                 let remembered = UUID(uuidString: lastShoeID)

@@ -1,6 +1,9 @@
-# FunRun
+# Gaitway
 
-A watch-first walk/run app. Start a session on your Apple Watch and just
+A watch-first walk/run app. (The repo, Xcode targets and bundle
+identifiers keep their original `FunRun` names — the App Store Connect
+record for Gaitway is bound to `com.paulrobinson.FunRun`, and bundle IDs
+are forever. Only user-facing names say Gaitway.) Start a session on your Apple Watch and just
 move — the app works out whether you're walking or running, pauses itself
 when you stop, and asks how hard it felt when you finish. The iPhone app is
 the companion: register your trainers there, track their wear, and browse
@@ -133,7 +136,8 @@ one side is asleep.
 
 ## Website
 
-The site at [funrun.robbo-online.uk](https://funrun.robbo-online.uk) lives
+The Gaitway site at
+[funrun.robbo-online.uk](https://funrun.robbo-online.uk) lives
 in `docs/` and deploys via GitHub Actions
 (`.github/workflows/pages.yml`) on every push to `main` that touches it.
 The brand comes from `docs/applogo.png` — near-black, electric cyan and

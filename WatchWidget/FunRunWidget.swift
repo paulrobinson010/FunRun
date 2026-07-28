@@ -17,7 +17,7 @@ struct WeekDistanceComplication: Widget {
             WeekDistanceView(entry: entry)
                 .containerBackground(.clear, for: .widget)
         }
-        .configurationDisplayName("FunRun")
+        .configurationDisplayName("Gaitway")
         .description("This week's distance. Tap to start a run.")
         .supportedFamilies([.accessoryCircular, .accessoryCorner, .accessoryRectangular, .accessoryInline])
     }
@@ -73,13 +73,13 @@ struct WeekDistanceView: View {
     var body: some View {
         switch family {
         case .accessoryInline:
-            Text("FunRun \(km) km this week")
+            Text("Gaitway \(km) km this week")
         case .accessoryRectangular:
             HStack(spacing: 6) {
                 logo
                     .frame(width: 30, height: 30)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("FunRun")
+                    Text("Gaitway")
                         .font(.headline)
                     Text("\(km) km this week")
                         .font(.footnote)
