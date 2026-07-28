@@ -45,7 +45,8 @@ struct StartView: View {
                             Text(shoe.pickerName).tag(UUID?.some(shoe.id))
                         }
                     }
-                    .frame(height: 48)
+                    .labelsHidden()
+                    .frame(height: 44)
                 } else {
                     Label("Shoes sync from the iPhone app", systemImage: "shoe.2")
                         .font(.footnote)
@@ -55,10 +56,11 @@ struct StartView: View {
                 Picker("Target", selection: $targetMinutes) {
                     Text("No target").tag(0)
                     ForEach([20, 25, 30, 35, 40, 45, 50, 60, 75, 90], id: \.self) { minutes in
-                        Text("\(minutes) min").tag(minutes)
+                        Text("\(minutes) min target").tag(minutes)
                     }
                 }
-                .frame(height: 48)
+                .labelsHidden()
+                .frame(height: 44)
 
                 if !workout.ghostCandidates.isEmpty {
                     NavigationLink {
