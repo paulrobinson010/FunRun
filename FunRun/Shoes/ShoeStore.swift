@@ -16,8 +16,14 @@ final class ShoeStore {
         load()
     }
 
-    var active: [Shoe] { shoes.filter { !$0.retired } }
-    var retired: [Shoe] { shoes.filter { $0.retired } }
+    var active: [Shoe] { sorted(shoes.filter { !$0.retired }) }
+    var retired: [Shoe] { sorted(shoes.filter { $0.retired }) }
+
+    private func sorted(_ shoes: [Shoe]) -> [Shoe] {
+        shoes.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
 
     func add(_ shoe: Shoe) {
         shoes.append(shoe)

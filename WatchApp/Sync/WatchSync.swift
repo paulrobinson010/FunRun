@@ -21,7 +21,9 @@ final class WatchSync: NSObject, WCSessionDelegate {
     }
 
     var activeShoes: [Shoe] {
-        shoes.filter { !$0.retired }
+        shoes.filter { !$0.retired }.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
     }
 
     func send(_ run: RunSummary) {
