@@ -27,6 +27,8 @@
 html{scroll-behavior:smooth}
 body{
   background:var(--bg);
+  background-image:radial-gradient(rgba(255,255,255,.035) 1px, transparent 1.5px);
+  background-size:28px 28px;
   color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   line-height:1.6;
@@ -85,9 +87,81 @@ h2{
   font-size:1.6rem;letter-spacing:-.01em;margin-bottom:8px;
 }
 .lede{color:var(--muted);max-width:640px;margin-bottom:28px}
+/* Every divider is a route that forks at its end */
 .rule{
+  position:relative;overflow:visible;
   height:2px;width:64px;border-radius:2px;margin:10px 0 26px;
-  background:linear-gradient(90deg,var(--cyan),var(--magenta));
+  background:linear-gradient(90deg,#cfd3e6,var(--cyan));
+}
+.rule::before,.rule::after{
+  content:"";position:absolute;left:100%;top:50%;
+  width:22px;height:2px;border-radius:2px;transform-origin:left center;
+}
+.rule::before{background:var(--cyan);transform:translateY(-50%) rotate(-26deg)}
+.rule::after{background:var(--magenta);transform:translateY(-50%) rotate(26deg)}
+
+/* The hero fork: a route that draws itself, splits at a decision node,
+   and shows what each branch costs — the app's signature, animated. */
+.fork-viz{position:relative;max-width:720px;margin:40px auto 0}
+.fork-viz svg{width:100%;height:auto;display:block;overflow:visible}
+.fork-viz path{fill:none;stroke-width:4;stroke-linecap:round}
+.fork-viz .stem,.fork-viz .bl,.fork-viz .br{stroke-dasharray:1;stroke-dashoffset:1}
+.fork-viz .stem{stroke:#cfd3e6;animation:draw .7s ease .25s forwards}
+.fork-viz .bl{stroke:var(--cyan);filter:drop-shadow(0 0 7px rgba(43,217,255,.55));animation:draw .9s ease .9s forwards}
+.fork-viz .br{stroke:var(--magenta);filter:drop-shadow(0 0 7px rgba(255,46,158,.5));animation:draw .9s ease .9s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.fork-viz .node{
+  fill:#0b0b14;stroke:#e8e9f2;stroke-width:3;
+  transform-box:fill-box;transform-origin:center;
+  animation:pop .45s var(--ease-pop,ease) .8s both;
+}
+.fork-viz .halo{
+  fill:none;stroke:rgba(232,233,242,.35);stroke-width:2;
+  transform-box:fill-box;transform-origin:center;
+  animation:halo 2.6s ease-out 1.4s infinite;
+}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+@keyframes halo{0%{transform:scale(.6);opacity:.8}70%{transform:scale(2.2);opacity:0}100%{opacity:0}}
+.fork-viz .runner{fill:#fff;filter:drop-shadow(0 0 6px rgba(255,255,255,.9));opacity:.95}
+.fork-chip{
+  position:absolute;bottom:-14px;
+  background:rgba(11,11,20,.92);
+  border:1px solid rgba(43,217,255,.45);
+  border-radius:12px;padding:8px 13px;
+  font-size:.84rem;line-height:1.4;white-space:nowrap;
+  opacity:0;animation:chip .5s ease 1.9s forwards;
+}
+.fork-chip b{font-weight:650}
+.fork-chip .dir{font-weight:700;color:var(--cyan)}
+.fork-chip .sub{display:block;color:var(--muted);font-size:.72rem}
+.fork-chip.left{left:0}
+.fork-chip.right{right:0;border-color:rgba(255,46,158,.45);animation-delay:2.15s}
+.fork-chip.right .dir{color:var(--magenta)}
+@keyframes chip{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.fork-caption{margin:26px auto 0;max-width:520px;text-align:center;color:var(--muted);font-size:.92rem}
+@media (max-width:560px){
+  .fork-chip{font-size:.7rem;padding:6px 9px;bottom:-10px}
+}
+
+/* Scroll-in reveals */
+.rv{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
+.rv.in{opacity:1;transform:none}
+.grid .rv:nth-child(2){transition-delay:.08s}
+.grid .rv:nth-child(3){transition-delay:.16s}
+.grid .rv:nth-child(4){transition-delay:.24s}
+.shots .rv:nth-child(2){transition-delay:.06s}
+.shots .rv:nth-child(3){transition-delay:.12s}
+.shots .rv:nth-child(4){transition-delay:.18s}
+.shots .rv:nth-child(5){transition-delay:.24s}
+.shots .rv:nth-child(6){transition-delay:.3s}
+
+@media (prefers-reduced-motion:reduce){
+  .fork-viz .stem,.fork-viz .bl,.fork-viz .br{animation:none;stroke-dashoffset:0}
+  .fork-viz .node{animation:none}
+  .fork-viz .halo{display:none}
+  .fork-viz .runner{display:none}
+  .fork-chip{animation:none;opacity:1}
+  .rv{opacity:1;transform:none;transition:none}
 }
 
 /* Feature grid */
@@ -174,6 +248,28 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
       <span class="badge"><b>iPhone</b> companion</span>
       <span class="badge"><b>Private</b> — no servers, no accounts</span>
     </div>
+
+    <div class="fork-viz" aria-hidden="true">
+      <svg viewBox="0 0 760 290" xmlns="http://www.w3.org/2000/svg">
+        <path class="stem" pathLength="1" d="M380 6 V118"/>
+        <path class="bl" pathLength="1" d="M380 118 C320 183 240 213 130 250"/>
+        <path class="br" pathLength="1" d="M380 118 C440 183 520 213 630 250"/>
+        <circle class="halo" cx="380" cy="118" r="10"/>
+        <circle class="node" cx="380" cy="118" r="8"/>
+        <circle class="runner" r="5">
+          <animateMotion begin="2s" dur="3.6s" repeatCount="indefinite"
+            path="M380 6 V118 C320 183 240 213 130 250"/>
+        </circle>
+        <circle class="runner" r="5">
+          <animateMotion begin="3.4s" dur="5s" repeatCount="indefinite"
+            path="M380 6 V118 C440 183 520 213 630 250"/>
+        </circle>
+      </svg>
+      <div class="fork-chip left"><span class="dir">←</span> <b>25 min</b> · 550 cal<span class="sub">70% of your runs go this way</span></div>
+      <div class="fork-chip right"><span class="dir">→</span> <b>45 min</b> · 800 cal<span class="sub">30% · the long loop</span></div>
+    </div>
+    <p class="fork-caption">At every fork you've run before, Gaitway knows what each way home costs —
+    learned from your own runs, shown on your wrist as you arrive.</p>
   </div>
 </header>
 
@@ -311,6 +407,25 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
     <p>Gaitway · <a href="privacy.html">Privacy</a> · <a href="https://github.com/paulrobinson010/FunRun">GitHub</a></p>
   </div>
 </footer>
+
+<script>
+(function () {
+  if (!("IntersectionObserver" in window)) return;
+  var els = document.querySelectorAll(".card, .strip, .shots figure");
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("in");
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  els.forEach(function (el) {
+    el.classList.add("rv");
+    io.observe(el);
+  });
+})();
+</script>
 
 </body>
 </html>
