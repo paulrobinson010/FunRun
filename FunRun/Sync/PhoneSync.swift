@@ -12,6 +12,21 @@ final class PhoneSync: NSObject, WCSessionDelegate {
     /// Fires once the session activates, so the shoe list can be pushed —
     /// a push attempted before activation is dropped by WatchConnectivity.
     var onActivated: (() -> Void)?
+    /// A route backup file arrived (already moved into the backup
+    /// directory); metadata describes it.
+    var onRouteFileReceived: (([String: Any]) -> Void)?
+    /// The watch has empty history and wants everything back.
+    var onRestoreRequested: (() -> Void)?
+    /// A favourite was named/renamed/removed on the watch.
+    var onFavouriteUpdated: ((String, String?) -> Void)?
+
+    /// Send backed-up routes to the watch (restore).
+    func transfer(files: [(url: URL, metadata: [String: Any])]) {
+        guard WCSession.default.activationState == .activated else { return }
+        for file in files {
+            WCSession.default.transferFile(file.url, metadata: file.metadata)
+        }
+    }
 
     override init() {
         super.init()
@@ -41,10 +56,39 @@ final class PhoneSync: NSObject, WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        guard let data = userInfo[SyncKey.run] as? Data,
-              let run = try? SyncCodec.decoder.decode(RunSummary.self, from: data) else { return }
+        if let data = userInfo[SyncKey.run] as? Data,
+           let run = try? SyncCodec.decoder.decode(RunSummary.self, from: data) {
+            Task { @MainActor in
+                self.onRunReceived?(run)
+            }
+        } else if userInfo[SyncKey.restoreRequest] != nil {
+            Task { @MainActor in
+                self.onRestoreRequested?()
+            }
+        } else if let idString = userInfo[SyncKey.favouriteID] as? String {
+            let name = userInfo[SyncKey.favouriteName] as? String
+            Task { @MainActor in
+                self.onFavouriteUpdated?(idString, name)
+            }
+        }
+    }
+
+    /// A route backup arriving from the watch. The incoming file must be
+    /// moved before this call returns.
+    nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        let metadata = file.metadata ?? [:]
+        guard metadata[SyncKey.fileKind] as? String == SyncKey.fileKindRouteRun,
+              let idString = metadata[SyncKey.routeID] as? String,
+              let id = UUID(uuidString: idString) else { return }
+        let destination = RouteBackupStore.fileURL(for: id)
+        try? FileManager.default.removeItem(at: destination)
+        do {
+            try FileManager.default.moveItem(at: file.fileURL, to: destination)
+        } catch {
+            return
+        }
         Task { @MainActor in
-            self.onRunReceived?(run)
+            self.onRouteFileReceived?(metadata)
         }
     }
 

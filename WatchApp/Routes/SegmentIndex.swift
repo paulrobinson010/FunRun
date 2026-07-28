@@ -60,6 +60,14 @@ struct SegmentIndex {
         )
     }
 
+    /// Every stretch as a routing edge, for pathfinding over the known
+    /// network (take-me-home).
+    var edges: [(from: RouteGraph.GridKey, to: RouteGraph.GridKey, startBearing: Double, seconds: TimeInterval)] {
+        byFromCell.flatMap { from, traversals in
+            traversals.map { (from, $0.to, $0.startBearing, $0.seconds) }
+        }
+    }
+
     /// Expected time from this fork to the next one, setting off in this
     /// direction.
     func expectedSeconds(from: RouteGraph.GridKey, startBearing: Double) -> TimeInterval? {

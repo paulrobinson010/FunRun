@@ -46,6 +46,10 @@ struct MetricsView: View {
                     GhostPanel(status: ghost)
                 }
 
+                if let home = workout.homeGuidance {
+                    HomePanel(guidance: home)
+                }
+
                 if let comparison = workout.segmentComparison {
                     SegmentComparisonBanner(comparison: comparison)
                 }
@@ -113,17 +117,27 @@ struct RoutePredictionPanel: View {
                 HStack(spacing: 5) {
                     Image(systemName: choice.direction.symbolName)
                         .font(.footnote.weight(.bold))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(choice.isRecommended ? .green : .orange)
                         .frame(width: 16)
                     Text("\(choice.finishInMinutes)m")
                         .font(.system(.footnote, design: .rounded).weight(.semibold))
                     Text("\(choice.totalCalories) cal")
                         .font(.system(.footnote, design: .rounded))
                     Spacer()
+                    if choice.isRecommended {
+                        Image(systemName: "target")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
                     Text("\(choice.probabilityPercent)%")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                .padding(.horizontal, 3)
+                .background(
+                    choice.isRecommended ? AnyShapeStyle(.green.opacity(0.2)) : AnyShapeStyle(.clear),
+                    in: RoundedRectangle(cornerRadius: 5)
+                )
             }
 
             if prediction.choices.contains(where: { $0.nextForkSeconds != nil }) {
@@ -226,6 +240,34 @@ struct GhostPanel: View {
     }
 }
 
+/// Take-me-home guidance: at a known fork, the first turn of the fastest
+/// known way back plus its ETA; between forks, a plain arrow toward the
+/// usual finish.
+struct HomePanel: View {
+    let guidance: HomeGuidance
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "house.fill")
+                .font(.footnote)
+                .foregroundStyle(.cyan)
+            Image(systemName: guidance.direction.symbolName)
+                .font(.footnote.weight(.bold))
+            if let minutes = guidance.etaMinutes {
+                Text("\(minutes)m home")
+                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+            } else {
+                Text("towards home")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(6)
+        .background(.cyan.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 /// Flashes up when a segment between two forks completes: this pass's
 /// time, the delta against the 28-day typical for the stretch, and a
 /// medal when it beat every recent pass.
@@ -285,6 +327,16 @@ struct ControlsView: View {
                 }
             }
             .tint(.yellow)
+
+            Button {
+                workout.toggleHomeGuidance()
+            } label: {
+                Label(
+                    workout.homeGuidanceEnabled ? "Guiding home" : "Take me home",
+                    systemImage: "house.fill"
+                )
+            }
+            .tint(workout.homeGuidanceEnabled ? .cyan : nil)
 
             if let shoe = workout.shoe {
                 Label(shoe.displayName, systemImage: "shoe.2")

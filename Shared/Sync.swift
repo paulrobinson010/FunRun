@@ -7,6 +7,21 @@ import Foundation
 enum SyncKey {
     static let shoes = "shoes"
     static let run = "run"
+
+    /// Watch → phone: asks for every backed-up route to be sent back
+    /// (fresh watch, or history wiped).
+    static let restoreRequest = "restoreRequest"
+    /// Watch → phone: a favourite was named/renamed/removed.
+    static let favouriteID = "favouriteID"
+    static let favouriteName = "favouriteName"
+
+    // File-transfer metadata for route backups.
+    static let fileKind = "kind"
+    static let fileKindRouteRun = "routeRun"
+    static let routeID = "routeID"
+    static let routeDate = "routeDate"
+    static let routeSeconds = "routeSeconds"
+    static let routeMeters = "routeMeters"
 }
 
 enum SyncCodec {

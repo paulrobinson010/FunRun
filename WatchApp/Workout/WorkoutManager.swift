@@ -57,6 +57,16 @@ final class WorkoutManager: NSObject {
     /// The kilometre split that just completed — a wrist tap plus a brief
     /// banner with its moving time and delta to the previous kilometre.
     private(set) var kmSplit: KmSplit?
+    /// Take-me-home mode: toggled from the controls screen.
+    private(set) var homeGuidanceEnabled = false
+    private(set) var homeGuidance: HomeGuidance?
+
+    func toggleHomeGuidance() {
+        homeGuidanceEnabled.toggle()
+        if !homeGuidanceEnabled {
+            homeGuidance = nil
+        }
+    }
 
     /// Past routes offered as ghosts on the start screen — the last 12
     /// months, newest first.
@@ -69,9 +79,13 @@ final class WorkoutManager: NSObject {
         routeStore.run(withID: id)
     }
 
+    /// Notified when a favourite changes, so the phone backup can follow.
+    var onFavouriteChanged: ((UUID, String?) -> Void)?
+
     /// Name (or rename) a favourite route; nil removes the favourite.
     func setFavourite(routeID: UUID, name: String?) {
         routeStore.setFavourite(routeID, name: name)
+        onFavouriteChanged?(routeID, name)
     }
 
     /// Called with the finished summary once the effort score is in.
@@ -93,9 +107,13 @@ final class WorkoutManager: NSObject {
     private let healthStore = HKHealthStore()
     private let pedometer = CMPedometer()
     private let routeRecorder = RouteRecorder()
-    private let routeStore = RouteHistoryStore()
+    /// Exposed so app wiring can attach it to WatchSync for backup.
+    let routeStore = RouteHistoryStore()
     private var routePredictor: RoutePredictor?
     private var ghostTracker: GhostTracker?
+    /// Target session length, when the user set one — drives the starred
+    /// branch at forks.
+    private var targetSeconds: TimeInterval?
     /// The last decision point passed, and the wall-clock offset when it
     /// was — start of the segment currently being run.
     private var lastDecisionPassage: (key: RouteGraph.GridKey, wallElapsed: TimeInterval)?
@@ -147,12 +165,15 @@ final class WorkoutManager: NSObject {
 
     // MARK: - Lifecycle
 
-    func start(with shoe: Shoe?, ghost: RouteRun? = nil) async {
+    func start(with shoe: Shoe?, ghost: RouteRun? = nil, targetMinutes: Int? = nil) async {
         guard phase == .idle || isFailed else { return }
         phase = .starting
         self.shoe = shoe
         ghostTracker = ghost.map { GhostTracker(route: $0) }
         ghostStatus = nil
+        targetSeconds = targetMinutes.map { Double($0) * 60 }
+        homeGuidanceEnabled = false
+        homeGuidance = nil
         do {
             try await requestAuthorization()
 
@@ -392,11 +413,20 @@ final class WorkoutManager: NSObject {
             break
         }
 
-        // Ghost guidance keeps working while paused — standing at a
-        // corner working out where to go is exactly when it's needed.
+        // Ghost and home guidance keep working while paused — standing at
+        // a corner working out where to go is exactly when they're needed.
         if phase == .active || phase.isPaused {
             updateGhostStatus()
+            updateHomeGuidance()
         }
+    }
+
+    private func updateHomeGuidance() {
+        guard homeGuidanceEnabled,
+              let predictor = routePredictor,
+              let location = routeRecorder.lastLocation,
+              let course = routeRecorder.course else { return }
+        homeGuidance = predictor.homeGuidance(at: location, course: course)
     }
 
     /// Crossing a kilometre boundary taps the wrist and flashes the
@@ -449,7 +479,9 @@ final class WorkoutManager: NSObject {
             at: location,
             course: course,
             energySoFar: activeEnergyKilocalories,
-            currentAverageSpeed: currentAverageSpeed
+            currentAverageSpeed: currentAverageSpeed,
+            elapsedSeconds: wallElapsed,
+            targetSeconds: targetSeconds
         )
         if let fresh, fresh.nodeKey != routePrediction?.nodeKey {
             WKInterfaceDevice.current().play(.directionUp)
@@ -736,6 +768,9 @@ final class WorkoutManager: NSObject {
         ghostTracker = nil
         ghostStatus = nil
         kmSplit = nil
+        targetSeconds = nil
+        homeGuidanceEnabled = false
+        homeGuidance = nil
         activeEnergyKilocalories = 0
         shoe = nil
         segments = []

@@ -9,6 +9,7 @@ import UserNotifications
 final class AppModel {
     let shoeStore = ShoeStore()
     let runLog = RunLog()
+    let routeBackup = RouteBackupStore()
     let sync = PhoneSync()
 
     init() {
@@ -22,6 +23,16 @@ final class AppModel {
         }
         sync.onActivated = { [weak self] in
             self?.pushShoes()
+        }
+        sync.onRouteFileReceived = { [weak self] metadata in
+            self?.routeBackup.record(metadata: metadata)
+        }
+        sync.onRestoreRequested = { [weak self] in
+            guard let self else { return }
+            sync.transfer(files: routeBackup.filesForRestore())
+        }
+        sync.onFavouriteUpdated = { [weak self] idString, name in
+            self?.routeBackup.setFavourite(idString: idString, name: name)
         }
         pushShoes()
     }

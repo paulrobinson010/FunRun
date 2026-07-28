@@ -88,6 +88,18 @@ your history.
   when you rejoin — for the "I don't know where I am" moments. Matching
   is monotonic along the ghost's track, so out-and-back routes don't
   snap you onto the homeward leg while you're still outbound.
+- **Target time** — tell it "I've got 40 minutes" on the start screen
+  and at every fork the branch whose expected finish lands closest to
+  the target is starred and highlighted. The fork predictions become
+  guidance instead of just information.
+- **Take me home** — one tap on the controls screen and the wrist shows
+  the first turn of the fastest known way back to your usual finishing
+  spot (learned from where runs end), with the ETA; between forks it
+  falls back to a plain arrow toward home.
+- **Route backup** — every recorded route mirrors to the phone over
+  WatchConnectivity file transfers, where standard iPhone/iCloud backups
+  cover it. A watch with empty history (new watch, reset) automatically
+  asks the phone to send everything back, favourites and names included.
 - **Segment comparisons** — the stretch between two decision points is a
   segment. Completing one flashes your time with a signed delta against
   your last 28 days on that same stretch (green faster, red slower), and

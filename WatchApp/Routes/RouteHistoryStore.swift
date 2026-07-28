@@ -86,6 +86,29 @@ final class RouteHistoryStore {
         return try? SyncCodec.decoder.decode(RouteRun.self, from: data)
     }
 
+    func contains(_ id: UUID) -> Bool {
+        metas.contains { $0.id == id }
+    }
+
+    /// Bring a run back from the phone backup (fresh watch restore).
+    func importRun(from url: URL, favouriteName: String?) {
+        guard let data = try? Data(contentsOf: url),
+              let run = try? SyncCodec.decoder.decode(RouteRun.self, from: data),
+              !contains(run.id) else { return }
+        try? data.write(to: Self.runURL(for: run.id), options: [.atomic])
+        metas.append(RouteMeta(
+            id: run.id,
+            date: run.date,
+            totalSeconds: run.totalSeconds,
+            totalDistanceMeters: run.totalDistanceMeters,
+            favouriteName: favouriteName
+        ))
+        metas.sort { $0.date > $1.date }
+        prune()
+        saveIndex()
+        publishWidgetStats()
+    }
+
     /// Every stored run, points and all. Heavy — call from off the main
     /// actor (predictor construction does).
     nonisolated static func loadAllRuns() -> [RouteRun] {
@@ -113,7 +136,7 @@ final class RouteHistoryStore {
         return directory
     }
 
-    nonisolated private static func runURL(for id: UUID) -> URL {
+    nonisolated static func runURL(for id: UUID) -> URL {
         runsDirectory.appendingPathComponent("\(id.uuidString).json")
     }
 
