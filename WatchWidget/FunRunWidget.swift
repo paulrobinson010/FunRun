@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WidgetKit
 
 /// Watch-face complication: this week's distance at a glance, and a
@@ -64,24 +65,36 @@ struct WeekDistanceView: View {
         String(format: entry.weekMeters >= 100_000 ? "%.0f" : "%.1f", entry.weekMeters / 1000)
     }
 
-    /// The glyph cut of the logo: neon runner on transparency. The full
-    /// square logo is ~80% black, which at complication size on a black
-    /// face renders as a black blob; the alpha-based glyph shows just
-    /// the glowing figure in full colour, and tints correctly on
-    /// monochrome faces. Unredacted so the brand mark shows even while
-    /// the face only has placeholder data.
+    /// The glyph cut of the logo: neon runner on transparency (the full
+    /// square logo is ~80% black and reads as a black blob at this
+    /// size). Loaded defensively: if the asset ever fails to resolve in
+    /// the extension bundle, a runner symbol shows instead of nothing —
+    /// so a missing icon looks different from a dead widget.
     private var icon: some View {
-        Image("LogoGlyph")
-            .resizable()
-            .scaledToFit()
-            .widgetAccentable()
-            .unredacted()
+        Group {
+            if let glyph = UIImage(named: "LogoGlyph") {
+                Image(uiImage: glyph)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: "figure.run")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(2)
+                    .foregroundStyle(.cyan)
+            }
+        }
+        .widgetAccentable()
     }
 
+    // The whole widget is unredacted: weekly distance isn't sensitive,
+    // and it guarantees real content renders even if the face never
+    // promotes past the placeholder state.
     var body: some View {
         switch family {
         case .accessoryInline:
             Text("Gaitway \(km) km this week")
+                .unredacted()
         case .accessoryRectangular:
             HStack(spacing: 6) {
                 icon
@@ -95,6 +108,7 @@ struct WeekDistanceView: View {
                 }
                 Spacer(minLength: 0)
             }
+            .unredacted()
         default:
             ZStack {
                 AccessoryWidgetBackground()
@@ -107,6 +121,7 @@ struct WeekDistanceView: View {
                         .minimumScaleFactor(0.7)
                 }
             }
+            .unredacted()
         }
     }
 }
