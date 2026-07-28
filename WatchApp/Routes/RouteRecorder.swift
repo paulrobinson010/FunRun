@@ -19,6 +19,7 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var sessionStart = Date()
+    private var isRecording = false
     private let minimumSpacingMeters: Double = 8
     private let accuracyLimitMeters: Double = 35
 
@@ -29,19 +30,37 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
         manager.activityType = .fitness
     }
 
+    /// Ask once, up front, while the app is settled in the foreground —
+    /// asking in the same breath as starting a workout is what makes
+    /// grants not stick and prompts reappear.
+    func requestPermissionIfNeeded() {
+        if manager.authorizationStatus == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        }
+    }
+
+    private var isAuthorized: Bool {
+        manager.authorizationStatus == .authorizedWhenInUse
+            || manager.authorizationStatus == .authorizedAlways
+    }
+
     func start(at date: Date) {
         sessionStart = date
         points = []
         rawLocations = []
         lastLocation = nil
-        if manager.authorizationStatus == .notDetermined {
-            manager.requestWhenInUseAuthorization()
+        isRecording = true
+        requestPermissionIfNeeded()
+        // Only opt into background updates once actually authorised —
+        // flipping it pre-grant makes the system re-litigate permission.
+        if isAuthorized {
+            manager.allowsBackgroundLocationUpdates = true
         }
-        manager.allowsBackgroundLocationUpdates = true
         manager.startUpdatingLocation()
     }
 
     func stop() {
+        isRecording = false
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false
     }
@@ -63,6 +82,18 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let authorized = manager.authorizationStatus == .authorizedWhenInUse
+            || manager.authorizationStatus == .authorizedAlways
+        Task { @MainActor in
+            // Granted mid-session (first-ever run): turn background
+            // updates on now that it's allowed.
+            if authorized, self.isRecording {
+                self.manager.allowsBackgroundLocationUpdates = true
+            }
+        }
+    }
 
     private func ingest(_ location: CLLocation) {
         guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= accuracyLimitMeters else { return }

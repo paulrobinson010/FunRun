@@ -61,7 +61,8 @@ struct ShoeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 6) {
+                ShoeColorDot(colorName: shoe.color)
                 Text(shoe.displayName)
                     .font(.headline)
                 Spacer()

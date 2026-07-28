@@ -14,6 +14,8 @@ struct Shoe: Codable, Identifiable, Hashable {
     /// Total distance run or walked in this pair, in metres.
     var distanceMeters: Double = 0
     var retired: Bool = false
+    /// Colourway — optional so older stored shoes decode unchanged.
+    var color: String? = nil
 
     var distanceKm: Double { distanceMeters / 1000 }
 
@@ -25,5 +27,12 @@ struct Shoe: Codable, Identifiable, Hashable {
 
     var displayName: String {
         brand.isEmpty ? name : "\(brand) \(name)"
+    }
+
+    /// Picker label: colour included so two identical pairs in different
+    /// colourways stay tellable apart.
+    var pickerName: String {
+        guard let color, !color.isEmpty else { return displayName }
+        return "\(displayName) · \(color)"
     }
 }

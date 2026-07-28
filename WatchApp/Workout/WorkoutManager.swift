@@ -236,6 +236,12 @@ final class WorkoutManager: NSObject {
         }
     }
 
+    /// Called from the start screen so the location grant happens calmly
+    /// in the foreground, not in the middle of starting a workout.
+    func requestLocationPermission() {
+        routeRecorder.requestPermissionIfNeeded()
+    }
+
     func togglePause() {
         switch phase {
         case .active:

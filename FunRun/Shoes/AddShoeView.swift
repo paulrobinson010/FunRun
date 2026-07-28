@@ -6,6 +6,7 @@ struct AddShoeView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var brand = ""
+    @State private var colour = ""
     @State private var replaceAfterKm = 650.0
     @State private var alreadyRunKm = 0.0
 
@@ -14,7 +15,8 @@ struct AddShoeView: View {
             Form {
                 Section("Trainers") {
                     TextField("Model (e.g. Pegasus 41)", text: $name)
-                    TextField("Brand (e.g. Nike)", text: $brand)
+                    ChoiceOrCustomField(title: "Brand", options: ShoePalette.brands, value: $brand)
+                    ChoiceOrCustomField(title: "Colour", options: ShoePalette.colours, value: $colour)
                 }
                 Section("Wear") {
                     Stepper(value: $replaceAfterKm, in: 100...1500, step: 50) {
@@ -37,7 +39,8 @@ struct AddShoeView: View {
                             name: name.trimmingCharacters(in: .whitespaces),
                             brand: brand.trimmingCharacters(in: .whitespaces),
                             replaceAfterKm: replaceAfterKm,
-                            distanceMeters: alreadyRunKm * 1000
+                            distanceMeters: alreadyRunKm * 1000,
+                            color: colour.isEmpty ? nil : colour
                         ))
                         model.pushShoes()
                         dismiss()

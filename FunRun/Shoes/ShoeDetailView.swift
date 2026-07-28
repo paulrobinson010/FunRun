@@ -11,7 +11,11 @@ struct ShoeDetailView: View {
         Form {
             Section("Trainers") {
                 TextField("Model", text: $shoe.name)
-                TextField("Brand", text: $shoe.brand)
+                ChoiceOrCustomField(title: "Brand", options: ShoePalette.brands, value: $shoe.brand)
+                ChoiceOrCustomField(title: "Colour", options: ShoePalette.colours, value: Binding(
+                    get: { shoe.color ?? "" },
+                    set: { shoe.color = $0.isEmpty ? nil : $0 }
+                ))
             }
             Section("Wear") {
                 LabeledContent("Distance so far", value: Format.distance(shoe.distanceMeters))

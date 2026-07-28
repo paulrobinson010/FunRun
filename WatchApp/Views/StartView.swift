@@ -39,7 +39,7 @@ struct StartView: View {
                     Picker("Trainers", selection: $selectedShoeID) {
                         Text("No shoes").tag(UUID?.none)
                         ForEach(sync.activeShoes) { shoe in
-                            Text(shoe.displayName).tag(UUID?.some(shoe.id))
+                            Text(shoe.pickerName).tag(UUID?.some(shoe.id))
                         }
                     }
                     .frame(height: 48)
@@ -100,6 +100,7 @@ struct StartView: View {
         }
         .navigationTitle("Gaitway")
         .onAppear {
+            workout.requestLocationPermission()
             if selectedShoeID == nil {
                 let remembered = UUID(uuidString: lastShoeID)
                 selectedShoeID = sync.activeShoes.first { $0.id == remembered }?.id
