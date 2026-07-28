@@ -48,8 +48,9 @@ struct WeekProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekEntry>) -> Void) {
         // The app reloads timelines after each run; the periodic refresh
-        // only exists to roll the figure over at the start of a new week.
-        let next = Calendar.current.date(byAdding: .hour, value: 6, to: Date()) ?? Date()
+        // rolls the week over and — importantly for updates — re-renders
+        // the face with the current build's artwork reasonably soon.
+        let next = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date()
         completion(Timeline(entries: [currentEntry()], policy: .after(next)))
     }
 }
