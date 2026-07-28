@@ -208,7 +208,7 @@ final class WorkoutManager: NSObject {
                 let runs = RouteHistoryStore.loadAllRuns()
                 let predictor = RoutePredictor(runs: runs)
                 let bestAttempt = favouriteGhost.map { RouteMatcher.fastestMatch(for: $0, in: runs) }
-                await MainActor.run {
+                await MainActor.run { [weak self] in
                     guard let self else { return }
                     self.routePredictor = predictor
                     if let bestAttempt, bestAttempt.id != favouriteGhost?.id, self.ghostTracker != nil {
@@ -528,7 +528,9 @@ final class WorkoutManager: NSObject {
             // all-walking session started as .running) is rebuilt as one
             // correctly-typed workout per chunk.
             if chunks.count <= 1, (chunks.first?.mode ?? .running) == .running {
-                finishedWorkouts = [try await builder.finishWorkout()]
+                if let workout = try await builder.finishWorkout() {
+                    finishedWorkouts = [workout]
+                }
                 savedWorkoutChunks = chunks.isEmpty
                     ? [RunSegment(mode: .running, start: startDate, end: date, distanceMeters: distanceMeters)]
                     : chunks
@@ -584,8 +586,11 @@ final class WorkoutManager: NSObject {
                 try? await healthStore.delete(workout)
             }
             do {
-                let workout = try await liveBuilder.finishWorkout()
-                finishedWorkouts = [workout]
+                if let workout = try await liveBuilder.finishWorkout() {
+                    finishedWorkouts = [workout]
+                } else {
+                    finishedWorkouts = []
+                }
                 savedWorkoutChunks = [RunSegment(mode: .running, start: startDate, end: endDate, distanceMeters: distanceMeters)]
             } catch {
                 finishedWorkouts = []
@@ -674,7 +679,12 @@ final class WorkoutManager: NSObject {
         }
 
         try await builder.endCollection(at: chunk.end)
-        return try await builder.finishWorkout()
+        guard let workout = try await builder.finishWorkout() else {
+            throw NSError(domain: "FunRun", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "HealthKit did not return the finished workout.",
+            ])
+        }
+        return workout
     }
 
     private func saveEffortToHealthKit(_ effort: Int) async {

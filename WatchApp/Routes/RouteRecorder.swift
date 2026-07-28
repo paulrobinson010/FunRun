@@ -72,7 +72,7 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
             let previous = CLLocation(latitude: last.latitude, longitude: last.longitude)
             guard location.distance(from: previous) >= minimumSpacingMeters else { return }
         }
-        let state = metrics?() ?? (0, 0)
+        let state = metrics?() ?? (distance: 0, energy: 0)
         points.append(TrackPoint(
             latitude: location.coordinate.latitude,
             longitude: location.coordinate.longitude,
