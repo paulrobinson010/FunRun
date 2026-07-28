@@ -127,6 +127,29 @@ h2{
 .strip p{color:var(--muted);max-width:640px}
 .strip b{color:var(--text)}
 
+/* Screenshot gallery */
+.shots{
+  display:flex;gap:18px;align-items:center;
+  overflow-x:auto;padding:8px 4px 20px;
+  scroll-snap-type:x proximity;
+  -webkit-overflow-scrolling:touch;
+}
+.shots figure{flex:0 0 auto;scroll-snap-align:start;text-align:center;margin:0}
+.shots img{
+  display:block;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:var(--panel);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.shots figure:hover img{
+  transform:translateY(-4px);
+  box-shadow:0 10px 40px rgba(43,217,255,.18), 0 10px 40px rgba(255,46,158,.12);
+}
+.shots .phone img{height:450px}
+.shots .watch img{height:230px;border-radius:26px}
+.shots figcaption{margin-top:10px;font-size:.8rem;color:var(--muted)}
+
 /* Footer */
 footer{
   border-top:1px solid var(--line);
@@ -246,6 +269,37 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
     <span class="big">🔒</span>
     <p><b>Private by design.</b> Gaitway runs no servers and collects nothing. Workouts live in Apple Health,
     routes and predictions live on your watch, shoes and history live on your phone. Nothing leaves your devices.</p>
+  </div>
+</section>
+
+<section>
+  <h2>See it running</h2>
+  <div class="rule"></div>
+  <div class="shots">
+    <figure class="watch">
+      <img src="shots/watch-start.webp" alt="Watch start screen: shoe picker, 45 minute target and Start button" loading="lazy">
+      <figcaption>Pick shoes, set a target, go</figcaption>
+    </figure>
+    <figure class="watch">
+      <img src="shots/watch-forks.webp" alt="Mid-run watch screen with kilometre split, ghost delta and fork prediction" loading="lazy">
+      <figcaption>Splits, ghost, fork predictions</figcaption>
+    </figure>
+    <figure class="watch">
+      <img src="shots/watch-stats.webp" alt="Watch screen with large pace, distance and heart rate" loading="lazy">
+      <figcaption>Big live stats</figcaption>
+    </figure>
+    <figure class="phone">
+      <img src="shots/phone-map.webp" alt="iPhone run detail with the route drawn on a map" loading="lazy">
+      <figcaption>Every run mapped</figcaption>
+    </figure>
+    <figure class="phone">
+      <img src="shots/phone-history.webp" alt="iPhone history with weekly training load" loading="lazy">
+      <figcaption>History &amp; training load</figcaption>
+    </figure>
+    <figure class="phone">
+      <img src="shots/phone-shoes.webp" alt="iPhone shoe list with wear bars and a replacement warning" loading="lazy">
+      <figcaption>Trainers, tracked to the km</figcaption>
+    </figure>
   </div>
 </section>
 
