@@ -58,16 +58,31 @@ struct WeekDistanceView: View {
     let entry: WeekEntry
 
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     private var km: String {
         String(format: entry.weekMeters >= 100_000 ? "%.0f" : "%.1f", entry.weekMeters / 1000)
     }
 
-    private var logo: some View {
-        Image("Logo")
-            .resizable()
-            .scaledToFit()
-            .clipShape(Circle())
+    /// Most watch faces render complications tinted, desaturating images
+    /// by brightness — and the logo is mostly black, so there it would
+    /// all but disappear. Full colour gets the real logo; tinted modes
+    /// get a template-friendly runner symbol instead.
+    private var icon: some View {
+        Group {
+            if renderingMode == .fullColor {
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: "figure.run")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(2)
+                    .widgetAccentable()
+            }
+        }
     }
 
     var body: some View {
@@ -76,7 +91,7 @@ struct WeekDistanceView: View {
             Text("Gaitway \(km) km this week")
         case .accessoryRectangular:
             HStack(spacing: 6) {
-                logo
+                icon
                     .frame(width: 30, height: 30)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Gaitway")
@@ -88,16 +103,13 @@ struct WeekDistanceView: View {
                 Spacer(minLength: 0)
             }
         default:
-            ZStack {
-                logo
-                    .opacity(0.45)
-                VStack(spacing: 0) {
-                    Text(km)
-                        .font(.system(.footnote, design: .rounded).weight(.bold))
-                    Text("km")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                }
+            VStack(spacing: 1) {
+                icon
+                    .frame(width: 20, height: 20)
+                Text(km)
+                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
     }
