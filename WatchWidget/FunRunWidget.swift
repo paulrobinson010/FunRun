@@ -58,33 +58,23 @@ struct WeekDistanceView: View {
     let entry: WeekEntry
 
     @Environment(\.widgetFamily) private var family
-    @Environment(\.widgetRenderingMode) private var renderingMode
 
     private var km: String {
         String(format: entry.weekMeters >= 100_000 ? "%.0f" : "%.1f", entry.weekMeters / 1000)
     }
 
-    /// Most watch faces render complications tinted, desaturating images
-    /// by brightness — and the logo is mostly black, so there it would
-    /// all but disappear. Full colour gets the real logo; tinted modes
-    /// get a template-friendly runner symbol instead. Unredacted so the
-    /// brand mark shows even while the face only has placeholder data.
+    /// The glyph cut of the logo: neon runner on transparency. The full
+    /// square logo is ~80% black, which at complication size on a black
+    /// face renders as a black blob; the alpha-based glyph shows just
+    /// the glowing figure in full colour, and tints correctly on
+    /// monochrome faces. Unredacted so the brand mark shows even while
+    /// the face only has placeholder data.
     private var icon: some View {
-        Group {
-            if renderingMode == .fullColor {
-                Image("Logo")
-                    .resizable()
-                    .scaledToFit()
-                    .clipShape(Circle())
-            } else {
-                Image(systemName: "figure.run")
-                    .resizable()
-                    .scaledToFit()
-                    .padding(2)
-                    .widgetAccentable()
-            }
-        }
-        .unredacted()
+        Image("LogoGlyph")
+            .resizable()
+            .scaledToFit()
+            .widgetAccentable()
+            .unredacted()
     }
 
     var body: some View {
