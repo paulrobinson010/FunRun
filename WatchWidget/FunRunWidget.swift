@@ -67,7 +67,8 @@ struct WeekDistanceView: View {
     /// Most watch faces render complications tinted, desaturating images
     /// by brightness — and the logo is mostly black, so there it would
     /// all but disappear. Full colour gets the real logo; tinted modes
-    /// get a template-friendly runner symbol instead.
+    /// get a template-friendly runner symbol instead. Unredacted so the
+    /// brand mark shows even while the face only has placeholder data.
     private var icon: some View {
         Group {
             if renderingMode == .fullColor {
@@ -83,6 +84,7 @@ struct WeekDistanceView: View {
                     .widgetAccentable()
             }
         }
+        .unredacted()
     }
 
     var body: some View {
@@ -103,13 +105,16 @@ struct WeekDistanceView: View {
                 Spacer(minLength: 0)
             }
         default:
-            VStack(spacing: 1) {
-                icon
-                    .frame(width: 20, height: 20)
-                Text(km)
-                    .font(.system(.footnote, design: .rounded).weight(.bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+            ZStack {
+                AccessoryWidgetBackground()
+                VStack(spacing: 1) {
+                    icon
+                        .frame(width: 20, height: 20)
+                    Text(km)
+                        .font(.system(.footnote, design: .rounded).weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
             }
         }
     }
