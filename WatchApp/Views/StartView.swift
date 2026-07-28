@@ -22,9 +22,11 @@ struct StartView: View {
     private var startContent: some View {
         ScrollView {
             VStack(spacing: 12) {
-                Image(systemName: "figure.run")
-                    .font(.title2)
-                    .foregroundStyle(.green)
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 54, height: 54)
+                    .clipShape(Circle())
 
                 if case .failed(let message) = workout.phase {
                     Text(message)

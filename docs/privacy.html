@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FunRun — Privacy</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{--bg:#020208;--cyan:#2bd9ff;--magenta:#ff2e9e;--text:#e8e9f2;--muted:#8b8da3;--line:rgba(255,255,255,.07)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.7}
+.wrap{max-width:720px;margin:0 auto;padding:56px 24px}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+img.logo{width:72px;height:72px;border-radius:50%;box-shadow:0 0 40px rgba(43,217,255,.3)}
+h1{margin:18px 0 6px;font-size:2rem;background:linear-gradient(100deg,var(--cyan),var(--magenta));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+h2{font-size:1.15rem;margin:28px 0 8px}
+p,li{color:var(--muted)}
+ul{padding-left:22px;margin:8px 0}
+b{color:var(--text)}
+footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--line);font-size:.9rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="logo" src="applogo.png" alt="FunRun logo">
+  <h1>Privacy</h1>
+  <p>The short version: <b>FunRun runs no servers and collects nothing.</b> There are no accounts,
+  no analytics, no third-party SDKs, and nothing is transmitted anywhere except between your own
+  Apple Watch and iPhone.</p>
+
+  <h2>What the app stores, and where</h2>
+  <ul>
+    <li><b>Workouts</b> (distance, heart rate, energy, effort score, GPS route) are saved to Apple Health
+    on your devices, under Apple Health's protections and your control.</li>
+    <li><b>Route history</b> used for fork predictions, segment comparisons and ghosts is stored only on
+    your watch, and runs older than 12 months are deleted automatically (favourites excepted).</li>
+    <li><b>Shoes and run history</b> are stored only on your iPhone.</li>
+  </ul>
+
+  <h2>Permissions it asks for</h2>
+  <ul>
+    <li><b>Health</b> — to record workouts and show live heart rate.</li>
+    <li><b>Motion &amp; Fitness</b> — step cadence, for telling walking from running and for auto-pause.</li>
+    <li><b>Location</b> — GPS during outdoor sessions, for distance, pace, maps and route learning.</li>
+    <li><b>Notifications</b> (iPhone) — only to tell you when a pair of trainers is due for replacement.</li>
+  </ul>
+
+  <h2>What leaves your devices</h2>
+  <p>Nothing. Sync between watch and phone uses Apple's WatchConnectivity directly between your own
+  devices. Deleting the apps deletes everything they stored outside Apple Health; Health data stays
+  under your control in the Health app.</p>
+
+  <footer>
+    <p><a href="index.html">← FunRun</a></p>
+  </footer>
+</div>
+</body>
+</html>

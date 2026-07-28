@@ -63,27 +63,41 @@ struct WeekDistanceView: View {
         String(format: entry.weekMeters >= 100_000 ? "%.0f" : "%.1f", entry.weekMeters / 1000)
     }
 
+    private var logo: some View {
+        Image("Logo")
+            .resizable()
+            .scaledToFit()
+            .clipShape(Circle())
+    }
+
     var body: some View {
         switch family {
         case .accessoryInline:
             Text("FunRun \(km) km this week")
         case .accessoryRectangular:
-            VStack(alignment: .leading, spacing: 1) {
-                Label("FunRun", systemImage: "figure.run")
-                    .font(.headline)
-                Text("\(km) km this week")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                logo
+                    .frame(width: 30, height: 30)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("FunRun")
+                        .font(.headline)
+                    Text("\(km) km this week")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
             }
         default:
-            VStack(spacing: 0) {
-                Image(systemName: "figure.run")
-                    .font(.headline)
-                Text(km)
-                    .font(.system(.footnote, design: .rounded).weight(.bold))
-                Text("km")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
+            ZStack {
+                logo
+                    .opacity(0.45)
+                VStack(spacing: 0) {
+                    Text(km)
+                        .font(.system(.footnote, design: .rounded).weight(.bold))
+                    Text("km")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

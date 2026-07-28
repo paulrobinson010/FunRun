@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FunRun — the watch-first walk/run app</title>
+<meta name="description" content="FunRun works out whether you're walking or running, pauses when you stop, races your own ghosts, predicts every fork in your route and tracks your trainers' wear. Watch-first, private by design.">
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:title" content="FunRun">
+<meta property="og:description" content="Walk or run — it works out which. Watch-first, private by design.">
+<meta property="og:image" content="https://funrun.robbo-online.uk/icon-512.png">
+<style>
+:root{
+  --bg:#020208;
+  --panel:#0b0b14;
+  --panel-2:#10101c;
+  --cyan:#2bd9ff;
+  --magenta:#ff2e9e;
+  --text:#e8e9f2;
+  --muted:#8b8da3;
+  --line:rgba(255,255,255,.07);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  line-height:1.6;
+  overflow-x:hidden;
+}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Hero */
+header{
+  position:relative;
+  padding:72px 0 56px;
+  text-align:center;
+}
+header::before{
+  content:"";
+  position:absolute;inset:0;
+  background:
+    radial-gradient(600px 300px at 30% 0%, rgba(43,217,255,.14), transparent 70%),
+    radial-gradient(600px 300px at 70% 10%, rgba(255,46,158,.12), transparent 70%);
+  pointer-events:none;
+}
+.logo{
+  width:168px;height:168px;border-radius:50%;
+  box-shadow:0 0 60px rgba(43,217,255,.35), 0 0 120px rgba(255,46,158,.25);
+}
+h1{
+  margin-top:26px;
+  font-size:clamp(2.4rem,6vw,3.6rem);
+  letter-spacing:-.02em;
+  background:linear-gradient(100deg,var(--cyan) 20%,var(--magenta) 80%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+}
+.tagline{
+  margin:10px auto 0;max-width:560px;
+  font-size:1.2rem;color:var(--text);
+}
+.sub{
+  margin:14px auto 0;max-width:620px;
+  color:var(--muted);font-size:1rem;
+}
+.badges{margin-top:26px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.badge{
+  border:1px solid var(--line);border-radius:999px;
+  padding:7px 16px;font-size:.85rem;color:var(--muted);
+  background:rgba(255,255,255,.02);
+}
+.badge b{color:var(--cyan);font-weight:600}
+.badge:nth-child(even) b{color:var(--magenta)}
+
+/* Sections */
+section{padding:48px 0}
+h2{
+  font-size:1.6rem;letter-spacing:-.01em;margin-bottom:8px;
+}
+.lede{color:var(--muted);max-width:640px;margin-bottom:28px}
+.rule{
+  height:2px;width:64px;border-radius:2px;margin:10px 0 26px;
+  background:linear-gradient(90deg,var(--cyan),var(--magenta));
+}
+
+/* Feature grid */
+.grid{
+  display:grid;gap:16px;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.card{
+  background:linear-gradient(180deg,var(--panel),var(--panel-2));
+  border:1px solid var(--line);
+  border-radius:16px;padding:22px;
+  transition:transform .15s ease, border-color .15s ease;
+}
+.card:hover{transform:translateY(-2px);border-color:rgba(43,217,255,.35)}
+.card:nth-child(even):hover{border-color:rgba(255,46,158,.35)}
+.card .icon{
+  font-size:1.5rem;line-height:1;
+  margin-bottom:12px;display:block;
+}
+.card h3{font-size:1.05rem;margin-bottom:6px}
+.card p{color:var(--muted);font-size:.92rem}
+.card em{
+  font-style:normal;
+  color:var(--cyan);font-weight:600;
+}
+.card:nth-child(even) em{color:var(--magenta)}
+
+/* Ghost strip */
+.strip{
+  margin-top:8px;
+  background:linear-gradient(100deg, rgba(43,217,255,.08), rgba(255,46,158,.08));
+  border:1px solid var(--line);
+  border-radius:16px;padding:26px;
+  display:flex;gap:20px;align-items:center;flex-wrap:wrap;
+}
+.strip .big{font-size:2rem}
+.strip p{color:var(--muted);max-width:640px}
+.strip b{color:var(--text)}
+
+/* Footer */
+footer{
+  border-top:1px solid var(--line);
+  padding:36px 0 48px;margin-top:32px;
+  color:var(--muted);font-size:.9rem;
+  text-align:center;
+}
+footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <img class="logo" src="applogo.png" alt="FunRun logo — a neon runner in a cyan and magenta circle">
+    <h1>FunRun</h1>
+    <p class="tagline">Walk or run — it works out which.</p>
+    <p class="sub">A watch-first walk/run app that detects your gait automatically, pauses when you stop,
+    races your own ghosts and knows what every fork in your route will cost you. Your phone stays in your pocket.</p>
+    <div class="badges">
+      <span class="badge"><b>Apple Watch</b> first</span>
+      <span class="badge"><b>iPhone</b> companion</span>
+      <span class="badge"><b>Private</b> — no servers, no accounts</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <h2>Just move</h2>
+  <div class="rule"></div>
+  <p class="lede">No mode picking, no fiddling mid-run. Start it and go — FunRun sorts the rest out from how you actually move.</p>
+  <div class="grid">
+    <div class="card">
+      <span class="icon">🏃</span>
+      <h3>Auto walk/run detection</h3>
+      <p>Step cadence tells walking from running — it's a gait change, not just a speed change — with your own
+      <em>run pace</em> setting as backup. Mixed outings are saved to Health as separate, correctly-typed
+      workouts: walk 2&nbsp;km, run 5&nbsp;km, walk 4&nbsp;km becomes three workouts, while a token 500&nbsp;m jog
+      just stays part of the walk.</p>
+    </div>
+    <div class="card">
+      <span class="icon">⏸️</span>
+      <h3>Auto-pause in 5 seconds</h3>
+      <p>Stop at a crossing and the session pauses itself after five seconds; start moving and it
+      <em>resumes on its own</em>. Manual pauses stay paused until you say otherwise.</p>
+    </div>
+    <div class="card">
+      <span class="icon">📊</span>
+      <h3>Everything on your wrist</h3>
+      <p>Current pace, distance, heart rate and elapsed time live on the watch, with a
+      <em>wrist tap and split every kilometre</em>. When you finish, it asks how hard that felt — a 1–10 effort
+      score saved straight onto the workout.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>It learns your routes</h2>
+  <div class="rule"></div>
+  <p class="lede">Every run teaches it your local map. The longer you use it, the smarter your wrist gets.</p>
+  <div class="grid">
+    <div class="card">
+      <span class="icon">🔀</span>
+      <h3>Fork predictions</h3>
+      <p>At every intersection you've faced before: turn left and you're <em>back in 25 minutes and 550 calories</em>;
+      turn right and it's 45 and 800. Averaged from what actually happened on past runs, so later forks are
+      priced in probabilistically.</p>
+    </div>
+    <div class="card">
+      <span class="icon">🏁</span>
+      <h3>Segment deltas</h3>
+      <p>The stretch between two forks is a segment. Finish one and see your time against your
+      <em>last 28 days</em> on that same stretch — green for faster, a medal for your best.</p>
+    </div>
+    <div class="card">
+      <span class="icon">👻</span>
+      <h3>Ghost runs</h3>
+      <p>Replay any route from the last year against a ghost of yourself — live ahead/behind at your exact spot,
+      turn arrows when you don't know where you're going, and a way back when you're lost. Favourites automatically
+      race your <em>fastest ever attempt</em>.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>And the rest of the kit</h2>
+  <div class="rule"></div>
+  <div class="grid">
+    <div class="card">
+      <span class="icon">👟</span>
+      <h3>Trainer wear</h3>
+      <p>Register your shoes, pick a pair on the watch, and every kilometre counts against them —
+      with a nudge at <em>90% of their life</em> and a warning when they're done.</p>
+    </div>
+    <div class="card">
+      <span class="icon">🗺️</span>
+      <h3>Maps everywhere</h3>
+      <p>Every workout lands in Apple Fitness <em>with its route drawn</em>, and the iPhone app maps
+      every run in your history.</p>
+    </div>
+    <div class="card">
+      <span class="icon">📈</span>
+      <h3>Training load</h3>
+      <p>Your effort scores earn their keep: weekly load versus your 4-week average, with an
+      <em>easy-does-it warning</em> when you're ramping too fast.</p>
+    </div>
+    <div class="card">
+      <span class="icon">⌚</span>
+      <h3>On your watch face</h3>
+      <p>A complication with <em>this week's distance</em>, one tap from starting a run.</p>
+    </div>
+  </div>
+
+  <div class="strip">
+    <span class="big">🔒</span>
+    <p><b>Private by design.</b> FunRun runs no servers and collects nothing. Workouts live in Apple Health,
+    routes and predictions live on your watch, shoes and history live on your phone. Nothing leaves your devices.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <img class="foot-logo" src="applogo.png" alt="">
+    <p>FunRun · <a href="privacy.html">Privacy</a> · <a href="https://github.com/paulrobinson010/FunRun">GitHub</a></p>
+  </div>
+</footer>
+
+</body>
+</html>

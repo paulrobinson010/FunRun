@@ -131,6 +131,15 @@ one side is asleep.
 - Requires an Apple Watch with GPS; permissions requested on first start:
   Health, Motion & Fitness, Location.
 
+## Website
+
+The site at [funrun.robbo-online.uk](https://funrun.robbo-online.uk) lives
+in `docs/` and deploys via GitHub Actions
+(`.github/workflows/pages.yml`) on every push to `main` that touches it.
+The brand comes from `docs/applogo.png` — near-black, electric cyan and
+hot magenta — and the same artwork feeds the iOS and watchOS app icons,
+the phone launch screen, the watch start screen and the complication.
+
 ## Building
 
 Open `FunRun.xcodeproj`, pick the `FunRun` scheme for the phone app or
