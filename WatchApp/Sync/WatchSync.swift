@@ -17,6 +17,10 @@ final class WatchSync: NSObject, WCSessionDelegate {
 
     override init() {
         super.init()
+        if DemoMode.isActive {
+            shoes = DemoData.shoes
+            return
+        }
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()

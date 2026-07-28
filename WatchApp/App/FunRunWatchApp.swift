@@ -7,12 +7,16 @@ struct FunRunWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(workout: workout, sync: sync)
-                .onAppear {
-                    workout.onFinished = { sync.send($0) }
-                    workout.onFavouriteChanged = { sync.sendFavouriteUpdate(id: $0, name: $1) }
-                    sync.attach(routeStore: workout.routeStore)
-                }
+            if DemoMode.isActive {
+                DemoRootView(workout: workout, sync: sync)
+            } else {
+                RootView(workout: workout, sync: sync)
+                    .onAppear {
+                        workout.onFinished = { sync.send($0) }
+                        workout.onFavouriteChanged = { sync.sendFavouriteUpdate(id: $0, name: $1) }
+                        sync.attach(routeStore: workout.routeStore)
+                    }
+            }
         }
     }
 }

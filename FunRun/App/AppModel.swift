@@ -13,6 +13,13 @@ final class AppModel {
     let sync = PhoneSync()
 
     init() {
+        // Screenshot/demo mode: seeded example data, no sync, nothing
+        // persisted — the wiring below never attaches.
+        if DemoMode.isActive {
+            shoeStore.seedForDemo(DemoData.shoes)
+            runLog.seedForDemo(DemoData.runs)
+            return
+        }
         sync.onRunReceived = { [weak self] run in
             guard let self else { return }
             runLog.add(run)

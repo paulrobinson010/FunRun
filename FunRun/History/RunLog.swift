@@ -6,9 +6,16 @@ import Observation
 @Observable
 final class RunLog {
     private(set) var runs: [RunSummary] = []
+    /// Demo mode never persists — the real log on disk stays untouched.
+    private var isDemo = false
 
     init() {
         load()
+    }
+
+    func seedForDemo(_ demoRuns: [RunSummary]) {
+        isDemo = true
+        runs = demoRuns.sorted { $0.startDate > $1.startDate }
     }
 
     func add(_ run: RunSummary) {
@@ -37,6 +44,7 @@ final class RunLog {
     }
 
     private func save() {
+        guard !isDemo else { return }
         guard let data = try? SyncCodec.encoder.encode(runs) else { return }
         try? data.write(to: fileURL, options: [.atomic])
     }

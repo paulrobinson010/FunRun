@@ -11,9 +11,16 @@ final class ShoeStore {
     private(set) var shoes: [Shoe] = []
 
     private var appliedRunIDs: Set<UUID> = []
+    /// Demo mode never persists — the real store on disk stays untouched.
+    private var isDemo = false
 
     init() {
         load()
+    }
+
+    func seedForDemo(_ demoShoes: [Shoe]) {
+        isDemo = true
+        shoes = demoShoes
     }
 
     var active: [Shoe] { sorted(shoes.filter { !$0.retired }) }
@@ -95,6 +102,7 @@ final class ShoeStore {
     }
 
     private func save() {
+        guard !isDemo else { return }
         let snapshot = Snapshot(shoes: shoes, appliedRunIDs: appliedRunIDs)
         guard let data = try? SyncCodec.encoder.encode(snapshot) else { return }
         try? data.write(to: fileURL, options: [.atomic])

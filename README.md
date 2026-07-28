@@ -156,6 +156,17 @@ The brand comes from `docs/applogo.png` — near-black, electric cyan and
 hot magenta — and the same artwork feeds the iOS and watchOS app icons,
 the phone launch screen, the watch start screen and the complication.
 
+## Demo mode (screenshots)
+
+Launch either app with the `-demo` argument (Product → Scheme → Edit
+Scheme → Arguments) and it presents seeded example data: three trainers
+at varied wear, three weeks of runs with map loops and a chained
+walk/run/walk outing on the phone; demo shoes on the watch start screen
+plus a frozen mid-run tableau (fork prediction, ghost delta, km split,
+live stats all at once) as a second page. Strictly in-memory and
+debug-only — nothing is persisted, synced, or written to HealthKit, and
+release builds compile the flag to false.
+
 ## Building
 
 Open `FunRun.xcodeproj`, pick the `FunRun` scheme for the phone app or
