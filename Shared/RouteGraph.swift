@@ -96,27 +96,23 @@ struct RouteGraph {
                 ))
             }
         }
-        // A fork is a place where three or more distinct directions
-        // meet: exits plus reversed approaches, clustered. Two
-        // directions is just a path (including an out-and-back); three
-        // is an intersection — visible from a single run. Directions
-        // are gathered over the cell's neighbourhood: with drift, two
-        // strands of the same physical junction rarely share one 18m
-        // cell. Curves stay safe because a continuous bearing sweep
-        // chains into a single cluster.
+        // A fork is a cell whose traffic connects out in three or more
+        // distinct directions — its "links": where each pass came from
+        // (reversed) and where it left to. A plain path or an
+        // out-and-back has two links; a zigzag's hairpin cell still has
+        // two; a junction has three or more. Strictly per-cell: pooling
+        // a neighbourhood mixes a switchback's separate legs into fake
+        // junctions, and the denser direction spread chains real
+        // corridors into too few clusters.
         var rawJunctions: Set<GridKey> = []
-        for key in graph.nodes.keys {
-            var directions: [Double] = []
-            var traffic = 0
-            for cell in key.selfAndNeighbours {
-                for traversal in graph.nodes[cell] ?? [] {
-                    traffic += 1
-                    directions.append(traversal.outgoingBearing)
-                    directions.append((traversal.approachBearing + 180).truncatingRemainder(dividingBy: 360))
-                }
+        for (key, traversals) in graph.nodes {
+            guard traversals.count >= 2 else { continue }
+            var links: [Double] = []
+            for traversal in traversals {
+                links.append(traversal.outgoingBearing)
+                links.append((traversal.approachBearing + 180).truncatingRemainder(dividingBy: 360))
             }
-            guard traffic >= 3 else { continue }
-            if clusterBearings(directions, width: 55).count >= 3 {
+            if clusterBearings(links, width: 50).count >= 3 {
                 rawJunctions.insert(key)
             }
         }
