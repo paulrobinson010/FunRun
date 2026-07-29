@@ -1,45 +1,174 @@
 import SwiftUI
 
-/// The in-workout screens: swipe between controls and live metrics,
-/// metrics front and centre by default.
+/// What can take over the screen mid-run. Field-tested rule: anything
+/// worth telling a runner is worth telling them in huge type.
+enum SessionOverlay {
+    case split(KmSplit)
+    case fork(RoutePrediction)
+    case segment(SegmentComparison)
+}
+
+/// The in-workout screens: controls, big live metrics, and a dedicated
+/// forks page — with full-screen pop-ups for splits, fork arrivals and
+/// segment results (auto-dismiss after a few seconds, tap to dismiss).
 struct SessionView: View {
     let workout: WorkoutManager
 
     @State private var selectedTab = 1
+    @State private var overlay: SessionOverlay?
+    @State private var dismissTask: Task<Void, Never>?
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            ControlsView(workout: workout)
-                .tag(0)
-            MetricsView(workout: workout)
-                .tag(1)
+        ZStack {
+            TabView(selection: $selectedTab) {
+                ControlsView(workout: workout)
+                    .tag(0)
+                MetricsView(workout: workout)
+                    .tag(1)
+                ForksView(workout: workout)
+                    .tag(2)
+            }
+            .tabViewStyle(.page)
+
+            if let overlay {
+                EventOverlay(overlay: overlay) {
+                    if case .fork = overlay {
+                        selectedTab = 2
+                    }
+                    dismiss()
+                }
+                .transition(.opacity)
+            }
         }
-        .tabViewStyle(.page)
+        // Registration order matters when events coincide (a segment
+        // completes exactly as a fork appears): later wins, and the
+        // fork is the actionable one.
+        .onChange(of: workout.segmentComparison) { _, comparison in
+            if let comparison {
+                show(.segment(comparison), for: 5)
+            }
+        }
+        .onChange(of: workout.kmSplit) { _, split in
+            if let split {
+                show(.split(split), for: 5)
+            }
+        }
+        .onChange(of: workout.routePrediction?.nodeKey) { _, nodeKey in
+            if nodeKey != nil, let prediction = workout.routePrediction {
+                show(.fork(prediction), for: 8)
+            }
+        }
+    }
+
+    private func show(_ newOverlay: SessionOverlay, for seconds: TimeInterval) {
+        withAnimation(.easeIn(duration: 0.15)) {
+            overlay = newOverlay
+        }
+        dismissTask?.cancel()
+        dismissTask = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) {
+                overlay = nil
+            }
+        }
+    }
+
+    private func dismiss() {
+        dismissTask?.cancel()
+        withAnimation(.easeOut(duration: 0.15)) {
+            overlay = nil
+        }
     }
 }
 
-/// Current pace, distance so far, heart rate — plus what the app currently
-/// thinks you're doing and whether it has auto-paused.
+// MARK: - Full-screen event pop-ups
+
+/// Big-type takeover for a few seconds; tap anywhere to dismiss.
+struct EventOverlay: View {
+    let overlay: SessionOverlay
+    let onTap: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.94).ignoresSafeArea()
+            content
+                .padding(.horizontal, 8)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch overlay {
+        case .split(let split):
+            VStack(spacing: 2) {
+                Text("KM \(split.kilometre)")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.green)
+                Text(Format.duration(split.seconds))
+                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                if let delta = split.deltaToPrevious {
+                    Text(Format.signedDuration(delta))
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundStyle(delta <= 0 ? .green : .red)
+                }
+            }
+        case .fork(let prediction):
+            VStack(alignment: .leading, spacing: 8) {
+                Label("FORK", systemImage: "arrow.triangle.branch")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.orange)
+                ForEach(prediction.choices.prefix(2)) { choice in
+                    ForkChoiceRow(choice: choice)
+                }
+                if prediction.choices.count > 2 {
+                    Text("more on the forks page →")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case .segment(let comparison):
+            VStack(spacing: 2) {
+                Label("SEGMENT", systemImage: "flag.checkered")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.cyan)
+                Text(Format.duration(comparison.seconds))
+                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                if let delta = comparison.deltaSeconds {
+                    Text(Format.signedDuration(delta))
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundStyle(delta <= 0 ? .green : .red)
+                }
+                if comparison.isBest {
+                    Label("Best in 28 days", systemImage: "medal.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.yellow)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Metrics (nothing smaller than the distance text)
+
 struct MetricsView: View {
     let workout: WorkoutManager
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Label(workout.mode.label, systemImage: workout.mode.symbolName)
-                        .font(.footnote.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(workout.mode == .running ? .green : .cyan)
                     Spacer()
                     if workout.isAutoPaused {
                         Text("PAUSED")
-                            .font(.footnote.weight(.bold))
+                            .font(.body.weight(.bold))
                             .foregroundStyle(.yellow)
                     }
-                }
-
-                if let split = workout.kmSplit {
-                    KmSplitBanner(split: split)
                 }
 
                 if let ghost = workout.ghostStatus {
@@ -48,14 +177,6 @@ struct MetricsView: View {
 
                 if let home = workout.homeGuidance {
                     HomePanel(guidance: home)
-                }
-
-                if let comparison = workout.segmentComparison {
-                    SegmentComparisonBanner(comparison: comparison)
-                }
-
-                if let prediction = workout.routePrediction {
-                    RoutePredictionPanel(prediction: prediction)
                 }
 
                 Text(Format.duration(workout.elapsed))
@@ -105,84 +226,78 @@ struct MetricsView: View {
     }
 }
 
-/// Shown at a known decision point: one row per way you've gone before —
-/// expected time to finish, expected session-total calories, and how
-/// often you've picked it.
-struct RoutePredictionPanel: View {
-    let prediction: RoutePrediction
+// MARK: - Forks page
+
+/// The dedicated page for route intelligence: the current fork in full,
+/// readable type, or an honest empty state — plus home guidance.
+struct ForksView: View {
+    let workout: WorkoutManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(prediction.choices.prefix(3)) { choice in
-                HStack(spacing: 5) {
-                    Image(systemName: choice.direction.symbolName)
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(choice.isRecommended ? .green : .orange)
-                        .frame(width: 16)
-                    Text("\(choice.finishInMinutes)m")
-                        .font(.system(.footnote, design: .rounded).weight(.semibold))
-                    Text("\(choice.totalCalories) cal")
-                        .font(.system(.footnote, design: .rounded))
-                    Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Forks", systemImage: "arrow.triangle.branch")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.orange)
+
+                if let prediction = workout.routePrediction {
+                    ForEach(prediction.choices) { choice in
+                        ForkChoiceRow(choice: choice)
+                    }
+                } else {
+                    Text("No fork nearby")
+                        .font(.title3.weight(.semibold))
+                    Text("Choices appear when you reach a junction you've run before.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let home = workout.homeGuidance {
+                    HomePanel(guidance: home)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 4)
+        }
+    }
+}
+
+/// One branch, in type you can read at pace: direction, time to finish,
+/// calories, and how often you go that way.
+struct ForkChoiceRow: View {
+    let choice: RoutePrediction.Choice
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: choice.direction.symbolName)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .foregroundStyle(choice.isRecommended ? .green : .orange)
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("\(choice.finishInMinutes) min")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
                     if choice.isRecommended {
                         Image(systemName: "target")
-                            .font(.caption2)
+                            .font(.body)
                             .foregroundStyle(.green)
                     }
-                    Text("\(choice.probabilityPercent)%")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 3)
-                .background(
-                    choice.isRecommended ? AnyShapeStyle(.green.opacity(0.2)) : AnyShapeStyle(.clear),
-                    in: RoundedRectangle(cornerRadius: 5)
-                )
+                Text("\(choice.totalCalories) cal · \(choice.probabilityPercent)%")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
             }
-
-            if prediction.choices.contains(where: { $0.nextForkSeconds != nil }) {
-                HStack(spacing: 6) {
-                    Text("next fork")
-                        .foregroundStyle(.secondary)
-                    ForEach(prediction.choices.prefix(3)) { choice in
-                        if let seconds = choice.nextForkSeconds {
-                            HStack(spacing: 1) {
-                                Image(systemName: choice.direction.symbolName)
-                                Text(Format.duration(seconds))
-                            }
-                        }
-                    }
-                }
-                .font(.caption2)
-            }
-        }
-        .padding(6)
-        .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-/// Flashes at each kilometre: the split's moving time and its delta to
-/// the previous kilometre — quicker in green, slower in red.
-struct KmSplitBanner: View {
-    let split: KmSplit
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Text("KM \(split.kilometre)")
-                .font(.footnote.weight(.bold))
-            Text(Format.duration(split.seconds))
-                .font(.system(.footnote, design: .rounded).weight(.semibold))
             Spacer()
-            if let delta = split.deltaToPrevious {
-                Text(Format.signedDuration(delta))
-                    .font(.system(.footnote, design: .rounded).weight(.bold))
-                    .foregroundStyle(delta <= 0 ? .green : .red)
-            }
         }
         .padding(6)
-        .background(.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+        .background(
+            choice.isRecommended ? AnyShapeStyle(.green.opacity(0.18)) : AnyShapeStyle(.white.opacity(0.06)),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
     }
 }
+
+// MARK: - Persistent panels (ghost, home) — body-size minimum
 
 /// The ghost race line: on route it shows the upcoming turn, whether
 /// you're ahead (green) or behind (red) the ghost at this exact spot,
@@ -191,52 +306,52 @@ struct GhostPanel: View {
     let status: GhostStatus
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             switch status.state {
             case .onRoute:
                 Image(systemName: "figure.run.circle")
-                    .font(.footnote)
+                    .font(.body)
                     .foregroundStyle(.purple)
                 if let turn = status.turn {
                     Image(systemName: turn.symbolName)
-                        .font(.footnote.weight(.bold))
+                        .font(.title3.weight(.bold))
                 }
                 Text(Format.signedDuration(status.deltaSeconds))
-                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(status.deltaSeconds >= 0 ? .green : .red)
                 Spacer()
                 Text(Format.distance(status.remainingMeters))
-                    .font(.footnote)
+                    .font(.body)
                     .foregroundStyle(.secondary)
             case .offRoute:
                 Image(systemName: "location.slash")
-                    .font(.footnote)
+                    .font(.body)
                     .foregroundStyle(.red)
                 Text("Off route")
-                    .font(.footnote.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                 Spacer()
                 if let direction = status.directionToRoute {
                     Image(systemName: direction.symbolName)
-                        .font(.footnote.weight(.bold))
+                        .font(.title3.weight(.bold))
                 }
                 if let meters = status.metersToRoute {
                     Text("\(Int(meters.rounded())) m")
-                        .font(.footnote)
+                        .font(.body)
                 }
             case .finished:
                 Image(systemName: "figure.run.circle")
-                    .font(.footnote)
+                    .font(.body)
                     .foregroundStyle(.purple)
                 Text(status.deltaSeconds >= 0 ? "Ghost beaten" : "Ghost won")
-                    .font(.footnote.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                 Spacer()
                 Text(Format.signedDuration(status.deltaSeconds))
-                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(status.deltaSeconds >= 0 ? .green : .red)
             }
         }
-        .padding(6)
-        .background(.purple.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+        .padding(7)
+        .background(.purple.opacity(0.15), in: RoundedRectangle(cornerRadius: 9))
     }
 }
 
@@ -247,63 +362,28 @@ struct HomePanel: View {
     let guidance: HomeGuidance
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             Image(systemName: "house.fill")
-                .font(.footnote)
+                .font(.body)
                 .foregroundStyle(.cyan)
             Image(systemName: guidance.direction.symbolName)
-                .font(.footnote.weight(.bold))
+                .font(.title3.weight(.bold))
             if let minutes = guidance.etaMinutes {
                 Text("\(minutes)m home")
-                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .font(.system(.title3, design: .rounded).weight(.semibold))
             } else {
                 Text("towards home")
-                    .font(.caption2)
+                    .font(.body)
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(6)
-        .background(.cyan.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+        .padding(7)
+        .background(.cyan.opacity(0.15), in: RoundedRectangle(cornerRadius: 9))
     }
 }
 
-/// Flashes up when a segment between two forks completes: this pass's
-/// time, the delta against the 28-day typical for the stretch, and a
-/// medal when it beat every recent pass.
-struct SegmentComparisonBanner: View {
-    let comparison: SegmentComparison
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "flag.checkered")
-                .font(.footnote)
-            Text(Format.duration(comparison.seconds))
-                .font(.system(.footnote, design: .rounded).weight(.semibold))
-            if let delta = comparison.deltaSeconds {
-                Text(Format.signedDuration(delta))
-                    .font(.system(.footnote, design: .rounded).weight(.bold))
-                    .foregroundStyle(delta <= 0 ? .green : .red)
-            } else {
-                Text("no recent history")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if comparison.isBest {
-                Image(systemName: "medal.fill")
-                    .font(.footnote)
-                    .foregroundStyle(.yellow)
-            } else if comparison.sampleCount > 0 {
-                Text("×\(comparison.sampleCount)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(6)
-        .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
+// MARK: - Controls
 
 struct ControlsView: View {
     let workout: WorkoutManager
