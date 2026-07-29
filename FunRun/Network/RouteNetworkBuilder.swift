@@ -57,55 +57,67 @@ enum RouteNetworkBuilder {
     private static func network(id: Int, from runs: [RouteRun]) -> RouteNetwork {
         let graph = RouteGraph.build(from: runs)
         let nodeCells = graph.decisionCells
-        // Forks are coalesced to a canonical cell; match arrivals with a
-        // cell of tolerance so drift still snaps to the right fork.
+        // Forks are coalesced to a canonical cell; match passes within
+        // ~2 cells so drift still snaps to the right fork.
         let nearFork: (RouteGraph.GridKey) -> RouteGraph.GridKey? = { cell in
-            cell.selfAndNeighbours.first { nodeCells.contains($0) }
+            cell.neighbours(radius: 2).first { nodeCells.contains($0) }
         }
 
         var forkPoints: [RouteGraph.GridKey: CLLocationCoordinate2D] = [:]
+        // Keyed by endpoints plus the initial-bearing sector, so a loop
+        // that leaves a fork and returns to the same fork keeps its two
+        // distinct exits, while repeat traversals of the same stretch
+        // dedupe to one drawn line per direction.
         struct SegmentKey: Hashable {
             let from: RouteGraph.GridKey
             let to: RouteGraph.GridKey
+            let sector: Int
         }
         var segmentGeometry: [SegmentKey: [CLLocationCoordinate2D]] = [:]
 
-        if !nodeCells.isEmpty {
-            for run in runs {
-                var lastNode: (key: RouteGraph.GridKey, index: Int)?
-                for (index, point) in run.points.enumerated() {
-                    let coordinate = CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude)
-                    guard let cell = nearFork(RouteGraph.GridKey(coordinate)) else { continue }
-                    if forkPoints[cell] == nil {
-                        forkPoints[cell] = coordinate
-                    }
-                    if let previous = lastNode, previous.key != cell, index - previous.index >= 2 {
-                        let key = SegmentKey(from: previous.key, to: cell)
-                        let mirrored = SegmentKey(from: cell, to: previous.key)
-                        if segmentGeometry[key] == nil && segmentGeometry[mirrored] == nil {
-                            segmentGeometry[key] = run.points[previous.index...index].map {
-                                CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
-                            }
-                        }
-                    }
-                    lastNode = (cell, index)
-                }
+        func emit(_ run: RouteRun, from: (key: RouteGraph.GridKey, index: Int), to: (key: RouteGraph.GridKey, index: Int)) {
+            // Same-fork loops need real length; different-fork stretches
+            // just need a few points. Guards out dwell noise at a fork.
+            let minimumGap = from.key == to.key ? 10 : 3
+            guard to.index - from.index >= minimumGap else { return }
+            let bearingSampleEnd = min(from.index + 3, to.index)
+            let initialBearing = RouteGraph.bearing(from: run.points[from.index], to: run.points[bearingSampleEnd])
+            let key = SegmentKey(from: from.key, to: to.key, sector: Int(initialBearing / 60) % 6)
+            guard segmentGeometry[key] == nil else { return }
+            segmentGeometry[key] = run.points[from.index...to.index].map {
+                CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
             }
         }
 
-        var paths: [RouteNetwork.SegmentPath] = segmentGeometry.values.prefix(maximumSegments)
+        for run in runs {
+            guard run.points.count >= 2 else { continue }
+            // The run start is a node too, so the stretch before the
+            // first fork is drawn; likewise the tail after the last.
+            var lastNode: (key: RouteGraph.GridKey, index: Int) = (
+                RouteGraph.GridKey(CLLocationCoordinate2D(
+                    latitude: run.points[0].latitude, longitude: run.points[0].longitude
+                )),
+                0
+            )
+            for (index, point) in run.points.enumerated() {
+                let coordinate = CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude)
+                guard let cell = nearFork(RouteGraph.GridKey(coordinate)) else { continue }
+                if forkPoints[cell] == nil {
+                    forkPoints[cell] = coordinate
+                }
+                emit(run, from: lastNode, to: (cell, index))
+                lastNode = (cell, index)
+            }
+            let endIndex = run.points.count - 1
+            let endCell = RouteGraph.GridKey(CLLocationCoordinate2D(
+                latitude: run.points[endIndex].latitude, longitude: run.points[endIndex].longitude
+            ))
+            emit(run, from: lastNode, to: (endCell, endIndex))
+        }
+
+        let paths: [RouteNetwork.SegmentPath] = segmentGeometry.values.prefix(maximumSegments)
             .enumerated()
             .map { RouteNetwork.SegmentPath(id: $0.offset, coordinates: $0.element) }
-
-        // Before any forks exist, show the raw tracks so the map is
-        // never an empty promise.
-        if paths.isEmpty {
-            paths = runs.prefix(20).enumerated().map { index, run in
-                RouteNetwork.SegmentPath(id: index, coordinates: run.points.map {
-                    CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
-                })
-            }
-        }
 
         let allPoints = runs.flatMap(\.points)
         let latitudes = allPoints.map(\.latitude)

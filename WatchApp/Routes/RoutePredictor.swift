@@ -171,7 +171,7 @@ final class RoutePredictor: Sendable {
     func homeGuidance(at location: CLLocation, course: Double) -> HomeGuidance? {
         guard let homeCoordinate else { return nil }
         let key = RouteGraph.GridKey(location.coordinate)
-        for candidate in key.selfAndNeighbours {
+        for candidate in key.neighbours(radius: 2) {
             if let entry = homeRoute[candidate], entry.seconds > 0 {
                 return HomeGuidance(
                     direction: RelativeDirection(course: course, branchBearing: entry.exitBearing),
@@ -228,7 +228,7 @@ final class RoutePredictor: Sendable {
     ) -> RoutePrediction? {
         let factor = paceFactor(currentAverageSpeed: currentAverageSpeed)
         let key = RouteGraph.GridKey(location.coordinate)
-        for candidate in key.selfAndNeighbours {
+        for candidate in key.neighbours(radius: 2) {
             let branches = graph.branches(at: candidate, course: course)
             guard branches.count >= 2 else { continue }
             var choices = branches.enumerated().map { index, branch in

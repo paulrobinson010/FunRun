@@ -38,8 +38,13 @@ struct RouteGraph {
 
         /// This cell plus the 8 around it, for tolerant live matching.
         var selfAndNeighbours: [GridKey] {
-            (-1...1).flatMap { dy in
-                (-1...1).map { dx in GridKey(x: x + dx, y: y + dy) }
+            neighbours(radius: 1)
+        }
+
+        /// The square of cells within `radius` of this one (inclusive).
+        func neighbours(radius: Int) -> [GridKey] {
+            (-radius...radius).flatMap { dy in
+                (-radius...radius).map { dx in GridKey(x: x + dx, y: y + dy) }
             }
         }
     }
@@ -94,28 +99,36 @@ struct RouteGraph {
         // A fork is a place where three or more distinct directions
         // meet: exits plus reversed approaches, clustered. Two
         // directions is just a path (including an out-and-back); three
-        // is an intersection — visible from a single run.
+        // is an intersection — visible from a single run. Directions
+        // are gathered over the cell's neighbourhood: with drift, two
+        // strands of the same physical junction rarely share one 18m
+        // cell. Curves stay safe because a continuous bearing sweep
+        // chains into a single cluster.
         var rawJunctions: Set<GridKey> = []
-        for (key, traversals) in graph.nodes {
-            guard traversals.count >= 2 else { continue }
+        for key in graph.nodes.keys {
             var directions: [Double] = []
-            for traversal in traversals {
-                directions.append(traversal.outgoingBearing)
-                directions.append((traversal.approachBearing + 180).truncatingRemainder(dividingBy: 360))
+            var traffic = 0
+            for cell in key.selfAndNeighbours {
+                for traversal in graph.nodes[cell] ?? [] {
+                    traffic += 1
+                    directions.append(traversal.outgoingBearing)
+                    directions.append((traversal.approachBearing + 180).truncatingRemainder(dividingBy: 360))
+                }
             }
+            guard traffic >= 3 else { continue }
             if clusterBearings(directions, width: 55).count >= 3 {
                 rawJunctions.insert(key)
             }
         }
-        // Coalesce junction cells within one cell of each other (~18m —
-        // generous enough for day-to-day GPS drift): the busiest cell of
-        // each cluster becomes the fork.
+        // Neighbourhood detection marks a blob of cells around each real
+        // junction; coalesce within ~2 cells (~36m, generous for drift)
+        // so the busiest cell of each blob becomes the one fork.
         var remaining = rawJunctions
         while let best = remaining.max(by: {
             (graph.nodes[$0]?.count ?? 0) < (graph.nodes[$1]?.count ?? 0)
         }) {
             graph.decisionCells.insert(best)
-            for neighbour in best.selfAndNeighbours {
+            for neighbour in best.neighbours(radius: 2) {
                 remaining.remove(neighbour)
             }
         }
@@ -131,7 +144,7 @@ struct RouteGraph {
     func branches(at key: GridKey, course: Double) -> [Branch] {
         guard decisionCells.contains(key) else { return [] }
         var traversals: [Traversal] = []
-        for cell in key.selfAndNeighbours {
+        for cell in key.neighbours(radius: 2) {
             traversals.append(contentsOf: nodes[cell] ?? [])
         }
         guard traversals.count >= Self.minimumSamplesPerBranch * 2 else { return [] }

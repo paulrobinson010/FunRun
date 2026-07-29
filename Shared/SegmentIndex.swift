@@ -28,7 +28,12 @@ struct SegmentIndex {
         guard !graph.decisionCells.isEmpty else { return index }
         for run in runs {
             var last: (key: RouteGraph.GridKey, elapsed: TimeInterval, bearing: Double?)?
-            for step in RouteGraph.cellPath(for: run) where graph.decisionCells.contains(step.key) {
+            for rawStep in RouteGraph.cellPath(for: run) {
+                // Forks are coalesced to a canonical cell; snap passes
+                // within ~2 cells of one onto it.
+                guard let node = rawStep.key.neighbours(radius: 2).first(where: graph.decisionCells.contains) else { continue }
+                var step = rawStep
+                step.key = node
                 if let previous = last, previous.key != step.key {
                     let seconds = step.point.elapsed - previous.elapsed
                     if seconds >= minimumSegmentSeconds, let bearing = previous.bearing {
