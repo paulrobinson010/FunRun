@@ -14,8 +14,13 @@ struct RouteNetwork: Identifiable {
     let id: Int
     var center: CLLocationCoordinate2D
     var runCount: Int
+    /// Prediction-grade forks: same approach, different exits, proven by
+    /// repeated runs.
     var forks: [CLLocationCoordinate2D]
-    /// Representative geometry per fork-to-fork stretch. When no forks
+    /// Geometric junctions: places where three or more paths visibly
+    /// meet — shown from the very first run, before any fork is proven.
+    var junctions: [CLLocationCoordinate2D]
+    /// Representative geometry per node-to-node stretch. When no nodes
     /// exist yet, these are the raw run tracks instead.
     var segments: [SegmentPath]
     var region: MKCoordinateRegion
@@ -54,26 +59,33 @@ enum RouteNetworkBuilder {
 
     private static func network(id: Int, from runs: [RouteRun]) -> RouteNetwork {
         let graph = RouteGraph.build(from: runs)
-        let decisionCells = graph.decisionCells
+        // Slice geometry at every node — junctions included, so the map
+        // breaks into segments from the very first run.
+        let nodeCells = graph.decisionCells.union(graph.junctionCells)
 
         var forkPoints: [RouteGraph.GridKey: CLLocationCoordinate2D] = [:]
+        var junctionPoints: [RouteGraph.GridKey: CLLocationCoordinate2D] = [:]
         struct SegmentKey: Hashable {
             let from: RouteGraph.GridKey
             let to: RouteGraph.GridKey
         }
         var segmentGeometry: [SegmentKey: [CLLocationCoordinate2D]] = [:]
 
-        if !decisionCells.isEmpty {
+        if !nodeCells.isEmpty {
             for run in runs {
-                var lastDecision: (key: RouteGraph.GridKey, index: Int)?
+                var lastNode: (key: RouteGraph.GridKey, index: Int)?
                 for (index, point) in run.points.enumerated() {
                     let coordinate = CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude)
                     let cell = RouteGraph.GridKey(coordinate)
-                    guard decisionCells.contains(cell) else { continue }
-                    if forkPoints[cell] == nil {
-                        forkPoints[cell] = coordinate
+                    guard nodeCells.contains(cell) else { continue }
+                    if graph.decisionCells.contains(cell) {
+                        if forkPoints[cell] == nil {
+                            forkPoints[cell] = coordinate
+                        }
+                    } else if junctionPoints[cell] == nil {
+                        junctionPoints[cell] = coordinate
                     }
-                    if let previous = lastDecision, previous.key != cell, index - previous.index >= 2 {
+                    if let previous = lastNode, previous.key != cell, index - previous.index >= 2 {
                         let key = SegmentKey(from: previous.key, to: cell)
                         let mirrored = SegmentKey(from: cell, to: previous.key)
                         if segmentGeometry[key] == nil && segmentGeometry[mirrored] == nil {
@@ -82,7 +94,7 @@ enum RouteNetworkBuilder {
                             }
                         }
                     }
-                    lastDecision = (cell, index)
+                    lastNode = (cell, index)
                 }
             }
         }
@@ -125,6 +137,7 @@ enum RouteNetworkBuilder {
             center: center,
             runCount: runs.count,
             forks: Array(forkPoints.values),
+            junctions: Array(junctionPoints.values),
             segments: paths,
             region: region
         )

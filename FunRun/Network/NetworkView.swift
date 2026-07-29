@@ -72,27 +72,42 @@ struct NetworkView: View {
                         style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
                     )
             }
+            ForEach(Array(network.junctions.enumerated()), id: \.offset) { _, junction in
+                Annotation("", coordinate: junction) {
+                    Circle()
+                        .fill(.black.opacity(0.55))
+                        .overlay(Circle().strokeBorder(.white.opacity(0.85), lineWidth: 1.5))
+                        .frame(width: 9, height: 9)
+                }
+            }
             ForEach(Array(network.forks.enumerated()), id: \.offset) { _, fork in
                 Annotation("", coordinate: fork) {
                     Circle()
                         .fill(.orange)
                         .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
-                        .frame(width: 11, height: 11)
+                        .frame(width: 12, height: 12)
                 }
             }
         }
         .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 14) {
-                Label("\(network.forks.count) forks", systemImage: "arrow.triangle.branch")
-                Label("\(network.segments.count) segments", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
-                Label("\(network.runCount) runs", systemImage: "figure.run")
-                Spacer()
+            HStack(spacing: 12) {
+                Label(count(network.forks.count, "fork"), systemImage: "arrow.triangle.branch")
+                Label(count(network.junctions.count, "junction"), systemImage: "circle.circle")
+                Label(count(network.segments.count, "segment"), systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                Label(count(network.runCount, "run"), systemImage: "figure.run")
+                Spacer(minLength: 0)
             }
-            .font(.footnote.weight(.medium))
-            .padding(.horizontal, 14)
+            .font(.caption.weight(.medium))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .background(.thinMaterial)
         }
+    }
+
+    private func count(_ n: Int, _ noun: String) -> String {
+        "\(n) \(noun)\(n == 1 ? "" : "s")"
     }
 
     private func name(of network: RouteNetwork) -> String {

@@ -66,6 +66,12 @@ struct RouteGraph {
     /// Cells that are decision points for at least one approach —
     /// approach-agnostic, used to slice runs into segments.
     private(set) var decisionCells: Set<GridKey> = []
+    /// Cells where three or more distinct directions meet — geometric
+    /// junctions, visible from a single run. A straight path or an
+    /// out-and-back has two directions; a T has three. Prediction-grade
+    /// forks (`decisionCells`) additionally need repeated same-approach
+    /// traffic that chose differently.
+    private(set) var junctionCells: Set<GridKey> = []
 
     static func build(from runs: [RouteRun]) -> RouteGraph {
         var graph = RouteGraph()
@@ -101,6 +107,19 @@ struct RouteGraph {
                     graph.decisionCells.insert(key)
                     break
                 }
+            }
+
+            // Junctions: count every direction touching the cell (exits
+            // plus reversed approaches); three or more distinct ones
+            // means paths meet here, even if no choice is proven yet.
+            guard traversals.count >= 2 else { continue }
+            var directions: [Double] = []
+            for traversal in traversals {
+                directions.append(traversal.outgoingBearing)
+                directions.append((traversal.approachBearing + 180).truncatingRemainder(dividingBy: 360))
+            }
+            if clusterBearings(directions, width: 55).count >= 3 {
+                graph.junctionCells.insert(key)
             }
         }
         return graph
