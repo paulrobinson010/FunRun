@@ -72,14 +72,6 @@ struct NetworkView: View {
                         style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
                     )
             }
-            ForEach(Array(network.junctions.enumerated()), id: \.offset) { _, junction in
-                Annotation("", coordinate: junction) {
-                    Circle()
-                        .fill(.black.opacity(0.55))
-                        .overlay(Circle().strokeBorder(.white.opacity(0.85), lineWidth: 1.5))
-                        .frame(width: 9, height: 9)
-                }
-            }
             ForEach(Array(network.forks.enumerated()), id: \.offset) { _, fork in
                 Annotation("", coordinate: fork) {
                     Circle()
@@ -92,7 +84,6 @@ struct NetworkView: View {
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 12) {
                 Label(count(network.forks.count, "fork"), systemImage: "arrow.triangle.branch")
-                Label(count(network.junctions.count, "junction"), systemImage: "circle.circle")
                 Label(count(network.segments.count, "segment"), systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                 Label(count(network.runCount, "run"), systemImage: "figure.run")
                 Spacer(minLength: 0)

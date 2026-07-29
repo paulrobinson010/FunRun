@@ -229,7 +229,7 @@ final class RoutePredictor: Sendable {
         let factor = paceFactor(currentAverageSpeed: currentAverageSpeed)
         let key = RouteGraph.GridKey(location.coordinate)
         for candidate in key.selfAndNeighbours {
-            let branches = graph.branches(at: candidate, approachBearing: course)
+            let branches = graph.branches(at: candidate, course: course)
             guard branches.count >= 2 else { continue }
             var choices = branches.enumerated().map { index, branch in
                 RoutePrediction.Choice(

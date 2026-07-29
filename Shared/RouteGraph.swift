@@ -63,15 +63,12 @@ struct RouteGraph {
 
     private var nodes: [GridKey: [Traversal]] = [:]
 
-    /// Cells that are decision points for at least one approach —
-    /// approach-agnostic, used to slice runs into segments.
+    /// Forks: cells where three or more distinct directions meet — a
+    /// genuine intersection, whatever direction it's approached from. A
+    /// straight path or an out-and-back has two directions and never
+    /// qualifies. Nearby junction cells (GPS drift puts the same corner
+    /// in neighbouring cells on different days) coalesce into one.
     private(set) var decisionCells: Set<GridKey> = []
-    /// Cells where three or more distinct directions meet — geometric
-    /// junctions, visible from a single run. A straight path or an
-    /// out-and-back has two directions; a T has three. Prediction-grade
-    /// forks (`decisionCells`) additionally need repeated same-approach
-    /// traffic that chose differently.
-    private(set) var junctionCells: Set<GridKey> = []
 
     static func build(from runs: [RouteRun]) -> RouteGraph {
         var graph = RouteGraph()
@@ -94,24 +91,12 @@ struct RouteGraph {
                 ))
             }
         }
-        // A fork means: arriving the SAME way, runs have left in
-        // different directions. Conditioning on approach is essential —
-        // an out-and-back puts opposite-direction traffic through every
-        // cell on the doubled stretch, and an approach-blind check reads
-        // that (or GPS wander at a road crossing) as divergence.
+        // A fork is a place where three or more distinct directions
+        // meet: exits plus reversed approaches, clustered. Two
+        // directions is just a path (including an out-and-back); three
+        // is an intersection — visible from a single run.
+        var rawJunctions: Set<GridKey> = []
         for (key, traversals) in graph.nodes {
-            let approachGroups = clusterBearings(traversals.map(\.approachBearing), width: 75)
-            for group in approachGroups where group.count >= 2 {
-                let exits = clusterBearings(group.map { traversals[$0].outgoingBearing })
-                if exits.count >= 2 {
-                    graph.decisionCells.insert(key)
-                    break
-                }
-            }
-
-            // Junctions: count every direction touching the cell (exits
-            // plus reversed approaches); three or more distinct ones
-            // means paths meet here, even if no choice is proven yet.
             guard traversals.count >= 2 else { continue }
             var directions: [Double] = []
             for traversal in traversals {
@@ -119,36 +104,63 @@ struct RouteGraph {
                 directions.append((traversal.approachBearing + 180).truncatingRemainder(dividingBy: 360))
             }
             if clusterBearings(directions, width: 55).count >= 3 {
-                graph.junctionCells.insert(key)
+                rawJunctions.insert(key)
+            }
+        }
+        // Coalesce junction cells within one cell of each other (~18m —
+        // generous enough for day-to-day GPS drift): the busiest cell of
+        // each cluster becomes the fork.
+        var remaining = rawJunctions
+        while let best = remaining.max(by: {
+            (graph.nodes[$0]?.count ?? 0) < (graph.nodes[$1]?.count ?? 0)
+        }) {
+            graph.decisionCells.insert(best)
+            for neighbour in best.selfAndNeighbours {
+                remaining.remove(neighbour)
             }
         }
         return graph
     }
 
-    /// The branches at this cell for someone arriving on this heading —
-    /// empty unless the cell is genuinely a decision point (two or more
-    /// trusted branches). Conditioning on approach keeps the outbound and
-    /// homebound passes through the same physical corner separate.
-    func branches(at key: GridKey, approachBearing: Double) -> [Branch] {
-        guard let traversals = nodes[key] else { return [] }
-        let matching = traversals.filter {
-            Self.angularDistance($0.approachBearing, approachBearing) <= 75
+    /// The branches at this fork for someone moving on this course —
+    /// every direction history has left it in, except the one behind
+    /// you. Outcomes pool across all approaches: how long "east from
+    /// here" takes doesn't depend on how you arrived. Traversals gather
+    /// from the neighbouring cells too, since drift spreads a corner's
+    /// traffic over ~a cell either side.
+    func branches(at key: GridKey, course: Double) -> [Branch] {
+        guard decisionCells.contains(key) else { return [] }
+        var traversals: [Traversal] = []
+        for cell in key.selfAndNeighbours {
+            traversals.append(contentsOf: nodes[cell] ?? [])
         }
-        guard matching.count >= Self.minimumSamplesPerBranch * 2 else { return [] }
+        guard traversals.count >= Self.minimumSamplesPerBranch * 2 else { return [] }
 
-        let clusters = Self.clusterBearings(matching.map(\.outgoingBearing))
+        let backTheWayYouCame = (course + 180).truncatingRemainder(dividingBy: 360)
+        let clusters = Self.clusterBearings(traversals.map(\.outgoingBearing))
         let branches: [Branch] = clusters.compactMap { memberIndices in
             guard memberIndices.count >= Self.minimumSamplesPerBranch else { return nil }
-            let members = memberIndices.map { matching[$0] }
+            let members = memberIndices.map { traversals[$0] }
+            let bearing = Self.circularMean(members.map(\.outgoingBearing))
+            guard Self.angularDistance(bearing, backTheWayYouCame) > 45 else { return nil }
             return Branch(
-                bearing: Self.circularMean(members.map(\.outgoingBearing)),
+                bearing: bearing,
                 expectedRemainingSeconds: members.map(\.remainingSeconds).reduce(0, +) / Double(members.count),
                 expectedRemainingEnergy: members.map(\.remainingEnergy).reduce(0, +) / Double(members.count),
                 sampleCount: members.count,
-                probability: Double(members.count) / Double(matching.count)
+                probability: 0
             )
         }
-        return branches.count >= 2 ? branches.sorted { $0.probability > $1.probability } : []
+        guard branches.count >= 2 else { return [] }
+        // Probability = choice share among the options actually offered.
+        let total = Double(branches.reduce(0) { $0 + $1.sampleCount })
+        return branches
+            .map { branch in
+                var branch = branch
+                branch.probability = Double(branch.sampleCount) / total
+                return branch
+            }
+            .sorted { $0.probability > $1.probability }
     }
 
     // MARK: - Track → cell path
