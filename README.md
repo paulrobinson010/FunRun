@@ -96,6 +96,12 @@ your history.
   the first turn of the fastest known way back to your usual finishing
   spot (learned from where runs end), with the ETA; between forks it
   falls back to a plain arrow toward home.
+- **The network map** — a phone tab that draws everything the watch has
+  learned: your run network on a map, broken into coloured segments
+  between forks, with the forks marked. Runs cluster by where they start
+  — home, holidays, wherever — into separate networks with geocoded
+  names, switchable from the globe menu. Before forks exist it shows
+  your raw tracks, so the map is never empty.
 - **Route backup** — every recorded route mirrors to the phone over
   WatchConnectivity file transfers, where standard iPhone/iCloud backups
   cover it. A watch with empty history (new watch, reset) automatically

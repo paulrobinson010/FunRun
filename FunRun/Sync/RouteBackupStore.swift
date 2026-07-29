@@ -59,6 +59,21 @@ final class RouteBackupStore {
         save()
     }
 
+    /// Every backed-up run, points and all — the raw material for the
+    /// network map. Heavy; call from off the main actor.
+    nonisolated static func loadAllRuns() -> [RouteRun] {
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        )) ?? []
+        return files
+            .filter { $0.pathExtension == "json" && $0.lastPathComponent != "index.json" }
+            .compactMap { url in
+                guard let data = try? Data(contentsOf: url) else { return nil }
+                return try? SyncCodec.decoder.decode(RouteRun.self, from: data)
+            }
+    }
+
     /// Everything needed to rebuild a watch from scratch.
     func filesForRestore() -> [(url: URL, metadata: [String: Any])] {
         entries.compactMap { entry in

@@ -20,6 +20,10 @@ struct ContentView: View {
                 .tabItem {
                     Label("Shoes", systemImage: "shoe.2")
                 }
+            NetworkView(model: model)
+                .tabItem {
+                    Label("Network", systemImage: "map")
+                }
             HistoryView(model: model)
                 .tabItem {
                     Label("History", systemImage: "list.bullet.rectangle")
