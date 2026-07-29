@@ -88,11 +88,19 @@ struct RouteGraph {
                 ))
             }
         }
+        // A fork means: arriving the SAME way, runs have left in
+        // different directions. Conditioning on approach is essential —
+        // an out-and-back puts opposite-direction traffic through every
+        // cell on the doubled stretch, and an approach-blind check reads
+        // that (or GPS wander at a road crossing) as divergence.
         for (key, traversals) in graph.nodes {
-            let clusters = clusterBearings(traversals.map(\.outgoingBearing))
-                .filter { $0.count >= minimumSamplesPerBranch }
-            if clusters.count >= 2 {
-                graph.decisionCells.insert(key)
+            let approachGroups = clusterBearings(traversals.map(\.approachBearing), width: 75)
+            for group in approachGroups where group.count >= 2 {
+                let exits = clusterBearings(group.map { traversals[$0].outgoingBearing })
+                if exits.count >= 2 {
+                    graph.decisionCells.insert(key)
+                    break
+                }
             }
         }
         return graph
@@ -170,10 +178,10 @@ struct RouteGraph {
         return (degrees + 360).truncatingRemainder(dividingBy: 360)
     }
 
-    /// Groups bearings into clusters no wider apart than
-    /// `clusterWidthDegrees`, respecting the 0°/360° wrap. Returns index
-    /// groups into the input array.
-    static func clusterBearings(_ bearings: [Double]) -> [[Int]] {
+    /// Groups bearings into clusters no wider apart than `width`,
+    /// respecting the 0°/360° wrap. Returns index groups into the input
+    /// array.
+    static func clusterBearings(_ bearings: [Double], width: Double = RouteGraph.clusterWidthDegrees) -> [[Int]] {
         guard !bearings.isEmpty else { return [] }
         let sorted = bearings.indices.sorted { bearings[$0] < bearings[$1] }
         // Find the largest gap around the circle and cut there, so a
@@ -195,7 +203,7 @@ struct RouteGraph {
             let previous = bearings[rotated[position - 1]]
             let current = bearings[rotated[position]]
             let gap = (current - previous + 360).truncatingRemainder(dividingBy: 360)
-            if gap <= clusterWidthDegrees {
+            if gap <= width {
                 clusters[clusters.count - 1].append(rotated[position])
             } else {
                 clusters.append([rotated[position]])

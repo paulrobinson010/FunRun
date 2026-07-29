@@ -395,7 +395,9 @@ final class WorkoutManager: NSObject {
                 autoPauseCount += 1
                 session?.pause()
             } else {
-                let freshCadence = now.timeIntervalSince(pedometerUpdatedAt) < 3 ? cadence : nil
+                // The pedometer delivers every ~2-5s; a tight freshness
+                // window made cadence flicker in and out of use.
+                let freshCadence = now.timeIntervalSince(pedometerUpdatedAt) < 6 ? cadence : nil
                 let detected = classifier.update(cadence: freshCadence, speed: speed, at: now)
                 if detected != mode {
                     closeSegment(at: now)
@@ -511,7 +513,7 @@ final class WorkoutManager: NSObject {
     /// recent HealthKit distance. Both go quiet when standing still, which
     /// correctly reads as zero.
     private func currentSpeed(at now: Date) -> Double {
-        if now.timeIntervalSince(pedometerUpdatedAt) < 3, let pedometerSpeed {
+        if now.timeIntervalSince(pedometerUpdatedAt) < 6, let pedometerSpeed {
             return pedometerSpeed
         }
         distanceHistory.removeAll { now.timeIntervalSince($0.date) > 10 }

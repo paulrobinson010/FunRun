@@ -17,15 +17,20 @@ struct ActivityClassifier {
 
     private var candidate: ActivityMode?
     private var candidateSince: Date?
+    private var lastSwitchAt: Date?
 
     /// Seconds the new gait must hold before the mode switches.
     private let sustainSeconds: TimeInterval = 6
+    /// After a switch, hold the mode for this long: even run/walk
+    /// intervals last longer than this, and it makes flapping impossible.
+    private let switchCommitmentSeconds: TimeInterval = 20
 
     /// Steps per minute above which the gait reads as running, and at or
-    /// below which it reads as walking. The gap between them is a dead
-    /// zone that keeps the current mode.
-    private let runningCadence: Double = 140
-    private let walkingCadence: Double = 128
+    /// below which it reads as walking. Field-tested: brisk walking
+    /// reaches ~140 spm, real running rarely sits below ~150, so the
+    /// dead zone must cover the whole brisk-walk range.
+    private let runningCadence: Double = 150
+    private let walkingCadence: Double = 134
 
     /// Speed thresholds (m/s) used only when cadence is unavailable —
     /// derived from the user's run pace, with a hysteresis band below.
@@ -39,7 +44,15 @@ struct ActivityClassifier {
     }
 
     mutating func update(cadence: Double?, speed: Double, at now: Date) -> ActivityMode {
-        let suggested: ActivityMode
+        // Freshly switched: committed. No candidate accumulates either,
+        // so the sustain clock starts after the commitment ends.
+        if let lastSwitchAt, now.timeIntervalSince(lastSwitchAt) < switchCommitmentSeconds {
+            candidate = nil
+            candidateSince = nil
+            return mode
+        }
+
+        var suggested: ActivityMode
         if let cadence, cadence > 0 {
             if cadence >= runningCadence {
                 suggested = .running
@@ -47,6 +60,12 @@ struct ActivityClassifier {
                 suggested = .walking
             } else {
                 suggested = mode
+            }
+            // Cadence says running but the body is moving at walking
+            // speed: that's a brisk walk, not a run. Speed corroboration
+            // only applies when the speed reading is credible.
+            if suggested == .running, speed > 0.3, speed < walkingSpeed {
+                suggested = .walking
             }
         } else if speed >= runningSpeed {
             suggested = .running
@@ -64,6 +83,7 @@ struct ActivityClassifier {
         if candidate == suggested, let since = candidateSince {
             if now.timeIntervalSince(since) >= sustainSeconds {
                 mode = suggested
+                lastSwitchAt = now
                 candidate = nil
                 candidateSince = nil
             }
@@ -78,5 +98,6 @@ struct ActivityClassifier {
         mode = startMode
         candidate = nil
         candidateSince = nil
+        lastSwitchAt = nil
     }
 }
