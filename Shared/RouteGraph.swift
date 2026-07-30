@@ -1,9 +1,9 @@
 import CoreLocation
 import Foundation
 
-/// The map your past runs draw. Tracks are snapped to a coarse grid; a
-/// cell where past traversals leave in two or more distinct directions is
-/// a decision point. Every traversal remembers how much time and energy
+/// The map your past runs draw. Tracks are snapped to a coarse grid;
+/// where two passes stop sharing a corridor (or separate corridors
+/// merge), that's a decision point. Every traversal remembers how much time and energy
 /// was still to come in that run, so each branch's outcomes are the
 /// *actual* endings of runs that took it — later intersections are
 /// automatically averaged in, weighted by how often each onward choice
@@ -68,17 +68,19 @@ struct RouteGraph {
 
     private var nodes: [GridKey: [Traversal]] = [:]
 
-    /// Forks: cells where three or more distinct directions meet — a
-    /// genuine intersection, whatever direction it's approached from. A
-    /// straight path or an out-and-back has two directions and never
-    /// qualifies. Nearby junction cells (GPS drift puts the same corner
-    /// in neighbouring cells on different days) coalesce into one.
+    /// Forks: places where the run network genuinely branches — where
+    /// passes that had been sharing a corridor part ways, or separate
+    /// corridors merge. Found by comparing whole paths rather than
+    /// bearing statistics, so a zigzagged, curved or drifting corridor
+    /// never fakes one: a fork needs the other pass to actually go
+    /// somewhere else.
     private(set) var decisionCells: Set<GridKey> = []
 
     static func build(from runs: [RouteRun]) -> RouteGraph {
         var graph = RouteGraph()
-        for run in runs {
-            let path = cellPath(for: run)
+        let paths = runs.map { cellPath(for: $0) }
+        for (runIndex, run) in runs.enumerated() {
+            let path = paths[runIndex]
             for index in path.indices {
                 let step = path[index]
                 guard let outgoing = step.outgoingBearing else { continue }
@@ -96,55 +98,158 @@ struct RouteGraph {
                 ))
             }
         }
-        // A fork is a place whose traffic connects out in three or more
-        // distinct directions — its "links": where each pass came from
-        // (reversed) and where it left to. Detection runs on a coarse
-        // (~36m) grid: day-to-day drift lands the same junction's
-        // strands in one coarse cell (fine cells miss them), and
-        // pooling repeat passes per corridor lets jitter merge instead
-        // of splitting into phantom directions. Two guards keep it
-        // honest: at least one direction must be corroborated (used
-        // twice — a real corridor), and a plain path, out-and-back or
-        // zigzag leg-pair never exceeds two direction clusters.
-        func coarse(_ value: Int) -> Int {
-            value >= 0 ? value / 2 : (value - 1) / 2
-        }
-        var coarseTraversals: [GridKey: [Traversal]] = [:]
-        var coarseToFine: [GridKey: [GridKey]] = [:]
-        for (key, traversals) in graph.nodes {
-            let coarseKey = GridKey(x: coarse(key.x), y: coarse(key.y))
-            coarseTraversals[coarseKey, default: []].append(contentsOf: traversals)
-            coarseToFine[coarseKey, default: []].append(key)
-        }
-        var rawJunctions: Set<GridKey> = []
-        for (coarseKey, traversals) in coarseTraversals {
-            guard traversals.count >= 3 else { continue }
-            var links: [Double] = []
-            for traversal in traversals {
-                links.append(traversal.outgoingBearing)
-                links.append((traversal.approachBearing + 180).truncatingRemainder(dividingBy: 360))
+        // A fork is where the network actually branches: the last shared
+        // cell before two passes that had been running the same corridor
+        // go separate ways, or the first shared cell where separate
+        // corridors merge. Every pair of paths is compared — each path
+        // against itself too, which is what finds the mouth of a loop.
+        // No bearing statistics anywhere: a corridor can wiggle, zigzag
+        // or drift between days and never produce a fork, because a fork
+        // needs the other pass to genuinely go somewhere else.
+        let indexMaps: [[GridKey: [Int]]] = paths.map { path in
+            var map: [GridKey: [Int]] = [:]
+            for (index, step) in path.enumerated() {
+                map[step.key, default: []].append(index)
             }
-            let clusters = clusterBearings(links, width: 50)
-            guard clusters.count >= 3, clusters.contains(where: { $0.count >= 2 }) else { continue }
-            if let canonical = coarseToFine[coarseKey]?.max(by: {
-                (graph.nodes[$0]?.count ?? 0) < (graph.nodes[$1]?.count ?? 0)
-            }) {
-                rawJunctions.insert(canonical)
+            return map
+        }
+        // Runs from different areas (home vs. holiday) can never share a
+        // corridor; skip those pairs outright.
+        let boxes: [(minX: Int, maxX: Int, minY: Int, maxY: Int)] = paths.map { path in
+            let xs = path.map(\.key.x)
+            let ys = path.map(\.key.y)
+            return (xs.min() ?? 0, xs.max() ?? 0, ys.min() ?? 0, ys.max() ?? 0)
+        }
+        var votes: [GridKey: Int] = [:]
+        for a in paths.indices {
+            for b in paths.indices {
+                guard boxes[a].minX <= boxes[b].maxX + 3, boxes[b].minX <= boxes[a].maxX + 3,
+                      boxes[a].minY <= boxes[b].maxY + 3, boxes[b].minY <= boxes[a].maxY + 3 else { continue }
+                for key in divergenceEvents(
+                    along: paths[a],
+                    against: paths[b],
+                    otherIndices: indexMaps[b],
+                    isSelf: a == b
+                ) {
+                    votes[key, default: 0] += 1
+                }
             }
         }
-        // Neighbourhood detection marks a blob of cells around each real
-        // junction; coalesce within ~2 cells (~36m, generous for drift)
-        // so the busiest cell of each blob becomes the one fork.
-        var remaining = rawJunctions
-        while let best = remaining.max(by: {
-            (graph.nodes[$0]?.count ?? 0) < (graph.nodes[$1]?.count ?? 0)
-        }) {
-            graph.decisionCells.insert(best)
-            for neighbour in best.neighbours(radius: 2) {
-                remaining.remove(neighbour)
+        // Drift and matching tolerance spread one junction's events over
+        // a few cells (a loop mouth's exit and return land ~3 apart);
+        // coalesce within 3. Every real fork is seen from both sides of
+        // a pair — or as both the exit and the return of a loop — so a
+        // cluster needs at least two votes; a lone event is noise.
+        var remaining = votes
+        while let seed = remaining.max(by: { $0.value < $1.value }) {
+            var total = 0
+            for neighbour in seed.key.neighbours(radius: 3) {
+                if let count = remaining.removeValue(forKey: neighbour) {
+                    total += count
+                }
+            }
+            if total >= 2 {
+                graph.decisionCells.insert(seed.key)
             }
         }
         return graph
+    }
+
+    /// Walks `path` against `other`, returning the boundary cell of each
+    /// sustained divergence (the last cell the two shared) and each
+    /// sustained convergence (the first cell they share). Together means
+    /// within ~1 cell; a break only counts once the paths are beyond ~3
+    /// cells for several consecutive cells, so momentary GPS drift never
+    /// splits a corridor. Self-comparison only pairs cells revisited far
+    /// apart along the path — an out-and-back tip or a zigzag never
+    /// pairs with itself, but the mouth of a genuine loop does — and
+    /// cross-comparison ignores boundaries at either path's ends, where
+    /// a run simply starting or stopping is not a junction.
+    private static func divergenceEvents(
+        along path: [CellStep],
+        against other: [CellStep],
+        otherIndices: [GridKey: [Int]],
+        isSelf: Bool
+    ) -> [GridKey] {
+        // Tuning, in cells (~18 m each).
+        let togetherRadius = 1
+        let apartRadius = 3
+        let persistence = 4
+        let endpointGuard = 8
+        let minimumSelfGap = 40
+        let selfBoundaryBand = 50
+
+        guard path.count > 2 * endpointGuard, other.count > 2 * endpointGuard else { return [] }
+
+        func match(at index: Int, radius: Int) -> Int? {
+            for cell in path[index].key.neighbours(radius: radius) {
+                for j in otherIndices[cell] ?? [] where !isSelf || abs(j - index) > minimumSelfGap {
+                    return j
+                }
+            }
+            return nil
+        }
+
+        func isRealBoundary(_ boundary: (i: Int, j: Int)) -> Bool {
+            // A boundary match barely past the pairing gap is the
+            // pairing gap itself vanishing (an out-and-back tip), not a
+            // loop mouth.
+            if isSelf, abs(boundary.j - boundary.i) <= selfBoundaryBand {
+                return false
+            }
+            // A boundary at either path's ends is a run starting or
+            // stopping — or a loop closing at the front door — not a
+            // junction.
+            guard boundary.j >= endpointGuard, boundary.j < other.count - endpointGuard else { return false }
+            return boundary.i >= endpointGuard && boundary.i < path.count - endpointGuard
+        }
+
+        var events: [GridKey] = []
+        var together = match(at: 0, radius: togetherRadius) != nil
+        var lastShared: (i: Int, j: Int)?
+        var firstShared: (i: Int, j: Int)?
+        var streak = 0
+
+        for i in path.indices {
+            let near = match(at: i, radius: togetherRadius)
+            if together {
+                if let near {
+                    lastShared = (i, near)
+                    streak = 0
+                } else if match(at: i, radius: apartRadius) != nil {
+                    streak = 0
+                } else {
+                    streak += 1
+                    if streak >= persistence {
+                        together = false
+                        streak = 0
+                        if let boundary = lastShared, isRealBoundary(boundary) {
+                            events.append(path[boundary.i].key)
+                        }
+                    }
+                }
+            } else {
+                if let near {
+                    if firstShared == nil {
+                        firstShared = (i, near)
+                    }
+                    streak += 1
+                    if streak >= persistence {
+                        together = true
+                        streak = 0
+                        if let boundary = firstShared, isRealBoundary(boundary) {
+                            events.append(path[boundary.i].key)
+                        }
+                        lastShared = firstShared
+                        firstShared = nil
+                    }
+                } else {
+                    firstShared = nil
+                    streak = 0
+                }
+            }
+        }
+        return events
     }
 
     /// The branches at this fork for someone moving on this course —
