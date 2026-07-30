@@ -63,7 +63,23 @@ enum RouteNetworkBuilder {
             cell.neighbours(radius: 2).first { nodeCells.contains($0) }
         }
 
-        var forkPoints: [RouteGraph.GridKey: CLLocationCoordinate2D] = [:]
+        // Place each fork dot at the average of the GPS points that pass
+        // through its canonical cell, so it sits on the actual path.
+        var forkSums: [RouteGraph.GridKey: (latitude: Double, longitude: Double, count: Double)] = [:]
+        for run in runs {
+            for point in run.points {
+                let cell = RouteGraph.GridKey(CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude))
+                guard nodeCells.contains(cell) else { continue }
+                var sum = forkSums[cell] ?? (0, 0, 0)
+                sum.latitude += point.latitude
+                sum.longitude += point.longitude
+                sum.count += 1
+                forkSums[cell] = sum
+            }
+        }
+        var forkPoints: [RouteGraph.GridKey: CLLocationCoordinate2D] = forkSums.mapValues {
+            CLLocationCoordinate2D(latitude: $0.latitude / $0.count, longitude: $0.longitude / $0.count)
+        }
         // Keyed by endpoints plus the initial-bearing sector, so a loop
         // that leaves a fork and returns to the same fork keeps its two
         // distinct exits, while repeat traversals of the same stretch
@@ -84,9 +100,19 @@ enum RouteNetworkBuilder {
             let initialBearing = RouteGraph.bearing(from: run.points[from.index], to: run.points[bearingSampleEnd])
             let key = SegmentKey(from: from.key, to: to.key, sector: Int(initialBearing / 60) % 6)
             guard segmentGeometry[key] == nil else { return }
-            segmentGeometry[key] = run.points[from.index...to.index].map {
+            var coordinates = run.points[from.index...to.index].map {
                 CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
             }
+            // Passes snap to a fork from ~2 cells out, which would leave
+            // every segment stopping short of the dot; pin the ends to
+            // the fork itself so the network draws joined-up.
+            if let anchor = forkPoints[from.key] {
+                coordinates.insert(anchor, at: 0)
+            }
+            if let anchor = forkPoints[to.key] {
+                coordinates.append(anchor)
+            }
+            segmentGeometry[key] = coordinates
         }
 
         for run in runs {
