@@ -299,7 +299,7 @@ struct SegmentStatusRow: View {
                 .font(.body)
                 .foregroundStyle(.orange)
             if let toGoMeters {
-                Text("\(Format.distance(toGoMeters)) to go")
+                Text("\(Format.compactDistance(toGoMeters)) to go")
                     .font(.system(.title3, design: .rounded).weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -348,9 +348,12 @@ struct ForkChoiceRow: View {
                 .foregroundStyle(.orange)
                 .frame(width: 30)
             VStack(alignment: .leading, spacing: 0) {
+                // Field-tested on the 49mm: full-precision distances
+                // truncated ("1.24… beat 5'…"), so compact units and
+                // scale-to-fit.
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     if let meters = choice.distanceMeters {
-                        Text(Format.distance(meters))
+                        Text(Format.compactDistance(meters))
                             .font(.system(.title3, design: .rounded).weight(.bold))
                     }
                     if let pace = choice.bestPaceSecondsPerKm {
@@ -359,9 +362,13 @@ struct ForkChoiceRow: View {
                             .foregroundStyle(.yellow)
                     }
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 Text(secondLine)
                     .font(.body)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             Spacer()
         }

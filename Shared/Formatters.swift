@@ -10,6 +10,14 @@ enum Format {
     }
 
     /// "5'32\"" per-kilometre pace from seconds/km; em dash when unknown.
+    /// "830 m" / "1.2 km" — one decimal, for tight watch rows.
+    static func compactDistance(_ meters: Double) -> String {
+        if meters < 1000 {
+            return "\(Int(meters.rounded())) m"
+        }
+        return String(format: "%.1f km", meters / 1000)
+    }
+
     static func pace(_ secondsPerKm: Double?) -> String {
         guard let secondsPerKm, secondsPerKm.isFinite, secondsPerKm > 0, secondsPerKm < 3600 else {
             return "—'——\""
