@@ -57,8 +57,6 @@ final class WorkoutManager: NSObject {
     /// How the segment just completed compares to the last 28 days of
     /// the same stretch. Shown briefly, then auto-hidden.
     private(set) var segmentComparison: SegmentComparison?
-    /// Live standing against the ghost, when this session races one.
-    private(set) var ghostStatus: GhostStatus?
     /// The kilometre split that just completed — a wrist tap plus a brief
     /// banner with its moving time and delta to the previous kilometre.
     private(set) var kmSplit: KmSplit?
@@ -66,6 +64,9 @@ final class WorkoutManager: NSObject {
     /// the push to the fork. Nil until enough known ground has been
     /// covered since the last fork.
     private(set) var segmentLiveDeltaSeconds: TimeInterval?
+    /// Metres left of the segment being run, when its length is known
+    /// from history.
+    private(set) var segmentToGoMeters: Double?
     /// Take-me-home mode: toggled from the controls screen.
     private(set) var homeGuidanceEnabled = false
     private(set) var homeGuidance: HomeGuidance?
@@ -77,15 +78,10 @@ final class WorkoutManager: NSObject {
         }
     }
 
-    /// Past routes offered as ghosts on the start screen — the last 12
-    /// months, newest first.
-    var ghostCandidates: [RouteMeta] {
+    /// Stored routes (last 12 months, newest first) — the Routes list
+    /// on the start screen, for favouriting and naming.
+    var savedRoutes: [RouteMeta] {
         routeStore.metas
-    }
-
-    /// Load a ghost's full track for the picker's selection.
-    func ghostRoute(withID id: UUID) -> RouteRun? {
-        routeStore.run(withID: id)
     }
 
     /// Notified when a favourite changes, so the phone backup can follow.
@@ -119,10 +115,13 @@ final class WorkoutManager: NSObject {
     /// Exposed so app wiring can attach it to WatchSync for backup.
     let routeStore = RouteHistoryStore()
     private var routePredictor: RoutePredictor?
-    private var ghostTracker: GhostTracker?
     /// The last decision point passed, and the wall-clock offset when it
     /// was — start of the segment currently being run.
     private var lastDecisionPassage: (key: RouteGraph.GridKey, wallElapsed: TimeInterval)?
+    /// Bookkeeping for the to-go figure: workout distance at segment
+    /// start, and the segment's expected length once inferred.
+    private var segmentStartWorkoutDistance: Double = 0
+    private var segmentPlannedMeters: Double?
     /// The fork currently being stood at / passed through, for edge
     /// detection — distinct from the prediction, which looks ahead.
     private var lastArrivalNode: RouteGraph.GridKey?
@@ -182,12 +181,10 @@ final class WorkoutManager: NSObject {
 
     // MARK: - Lifecycle
 
-    func start(with shoe: Shoe?, ghost: RouteRun? = nil) async {
+    func start(with shoe: Shoe?) async {
         guard phase == .idle || isFailed else { return }
         phase = .starting
         self.shoe = shoe
-        ghostTracker = ghost.map { GhostTracker(route: $0) }
-        ghostStatus = nil
         homeGuidanceEnabled = false
         homeGuidance = nil
         do {
@@ -242,28 +239,20 @@ final class WorkoutManager: NSObject {
             segmentHistoryDelta = 0
             segmentDeltaSamples = 0
             segmentLiveDeltaSeconds = nil
+            segmentToGoMeters = nil
+            segmentPlannedMeters = nil
+            segmentStartWorkoutDistance = 0
             lastDeltaTickAt = nil
             lastDeltaDistance = 0
             // A year of tracks is too much to crunch on the main actor;
             // predictions simply stay off until the graph is ready
-            // (they need a GPS fix first anyway). The same pass upgrades
-            // a favourite ghost to the fastest recorded attempt of that
-            // route — a favourite means the route, not one day's run.
+            // (they need a GPS fix first anyway).
             routePredictor = nil
-            let favouriteGhost = ghost.flatMap { candidate in
-                routeStore.metas.first { $0.id == candidate.id }?.isFavourite == true ? candidate : nil
-            }
             Task.detached(priority: .utility) { [weak self] in
                 let runs = RouteHistoryStore.loadAllRuns()
                 let predictor = RoutePredictor(runs: runs)
-                let bestAttempt = favouriteGhost.map { RouteMatcher.fastestMatch(for: $0, in: runs) }
                 await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    self.routePredictor = predictor
-                    if let bestAttempt, bestAttempt.id != favouriteGhost?.id, self.ghostTracker != nil {
-                        self.ghostTracker = GhostTracker(route: bestAttempt)
-                        self.ghostStatus = nil
-                    }
+                    self?.routePredictor = predictor
                 }
             }
             routeRecorder.metrics = { [weak self] in
@@ -432,6 +421,7 @@ final class WorkoutManager: NSObject {
             }
             updateRoutePrediction()
             accumulateHistoryDelta(now: now)
+            updateSegmentProgress()
             updateKmSplit()
         case .paused(auto: true):
             if speed >= resumeSpeed {
@@ -441,12 +431,30 @@ final class WorkoutManager: NSObject {
             break
         }
 
-        // Ghost and home guidance keep working while paused — standing at
-        // a corner working out where to go is exactly when they're needed.
+        // Home guidance keeps working while paused — standing at a
+        // corner working out where to go is exactly when it's needed.
         if phase == .active || phase.isPaused {
-            updateGhostStatus()
             updateHomeGuidance()
         }
+    }
+
+    /// Once ~40 m into a segment the branch being run is identifiable
+    /// from history, giving the segment's expected length — from there
+    /// the stats row can show distance to go.
+    private func updateSegmentProgress() {
+        guard let predictor = routePredictor, let passage = lastDecisionPassage else {
+            segmentToGoMeters = nil
+            return
+        }
+        let covered = distanceMeters - segmentStartWorkoutDistance
+        if segmentPlannedMeters == nil, covered > 40, covered < 160,
+           let location = routeRecorder.lastLocation {
+            segmentPlannedMeters = predictor.branchLengthMeters(
+                from: passage.key,
+                towards: location.coordinate
+            )
+        }
+        segmentToGoMeters = segmentPlannedMeters.map { max(0, $0 - covered) }
     }
 
     private func updateHomeGuidance() {
@@ -503,20 +511,6 @@ final class WorkoutManager: NSObject {
         }
     }
 
-    private func updateGhostStatus() {
-        guard let tracker = ghostTracker, let location = routeRecorder.lastLocation else { return }
-        let wallElapsed = Date().timeIntervalSince(startDate)
-        let fresh = tracker.update(location: location, course: routeRecorder.course, wallElapsed: wallElapsed)
-        if let fresh, let previous = ghostStatus, fresh.state != previous.state {
-            switch fresh.state {
-            case .offRoute: WKInterfaceDevice.current().play(.failure)
-            case .onRoute: WKInterfaceDevice.current().play(.success)
-            case .finished: WKInterfaceDevice.current().play(.success)
-            }
-        }
-        ghostStatus = fresh ?? ghostStatus
-    }
-
     /// Two jobs each tick: notice actually *passing* a fork (segment
     /// timing keys off real arrival, matching how history was carved
     /// up), and look ~100 m ahead for the next fork so the choices pop
@@ -556,6 +550,9 @@ final class WorkoutManager: NSObject {
             segmentHistoryDelta = 0
             segmentDeltaSamples = 0
             segmentLiveDeltaSeconds = nil
+            segmentStartWorkoutDistance = distanceMeters
+            segmentPlannedMeters = nil
+            segmentToGoMeters = nil
         }
         guard let previous = lastDecisionPassage, previous.key != key else { return }
         let seconds = wallElapsed - previous.wallElapsed
@@ -604,7 +601,6 @@ final class WorkoutManager: NSObject {
         stopPedometer()
         routeRecorder.stop()
         routePrediction = nil
-        ghostStatus = nil
         tickTask?.cancel()
         tickTask = nil
         endDate = date
@@ -830,10 +826,10 @@ final class WorkoutManager: NSObject {
         segmentComparison = nil
         lastDecisionPassage = nil
         lastArrivalNode = nil
-        ghostTracker = nil
-        ghostStatus = nil
         kmSplit = nil
         segmentLiveDeltaSeconds = nil
+        segmentToGoMeters = nil
+        segmentPlannedMeters = nil
         homeGuidanceEnabled = false
         homeGuidance = nil
         activeEnergyKilocalories = 0

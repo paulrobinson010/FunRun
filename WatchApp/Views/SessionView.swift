@@ -183,10 +183,6 @@ struct MetricsView: View {
                     }
                 }
 
-                if let ghost = workout.ghostStatus {
-                    GhostPanel(status: ghost)
-                }
-
                 if let home = workout.homeGuidance {
                     HomePanel(guidance: home)
                 }
@@ -213,6 +209,13 @@ struct MetricsView: View {
                     icon: "heart.fill",
                     iconColor: .red
                 )
+
+                if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
+                    SegmentStatusRow(
+                        toGoMeters: workout.segmentToGoMeters,
+                        deltaSeconds: workout.segmentLiveDeltaSeconds
+                    )
+                }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(.horizontal, 4)
@@ -250,14 +253,15 @@ struct ForksView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Label("Forks", systemImage: "arrow.triangle.branch")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.orange)
-                    Spacer()
-                    if let delta = workout.segmentLiveDeltaSeconds {
-                        SegmentDeltaChip(deltaSeconds: delta)
-                    }
+                Label("Forks", systemImage: "arrow.triangle.branch")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.orange)
+
+                if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
+                    SegmentStatusRow(
+                        toGoMeters: workout.segmentToGoMeters,
+                        deltaSeconds: workout.segmentLiveDeltaSeconds
+                    )
                 }
 
                 if let prediction = workout.routePrediction {
@@ -279,6 +283,38 @@ struct ForksView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(.horizontal, 4)
         }
+    }
+}
+
+/// The segment being run, in one row: distance left of it (when its
+/// length is known from history) and the live vs-history delta. Shared
+/// by the metrics page and the forks page.
+struct SegmentStatusRow: View {
+    let toGoMeters: Double?
+    let deltaSeconds: TimeInterval?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "flag.checkered")
+                .font(.body)
+                .foregroundStyle(.orange)
+            if let toGoMeters {
+                Text("\(Format.distance(toGoMeters)) to go")
+                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            } else {
+                Text("Segment")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let deltaSeconds {
+                SegmentDeltaChip(deltaSeconds: deltaSeconds)
+            }
+        }
+        .padding(7)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
     }
 }
 
@@ -343,63 +379,7 @@ struct ForkChoiceRow: View {
     }
 }
 
-// MARK: - Persistent panels (ghost, home) — body-size minimum
-
-/// The ghost race line: on route it shows the upcoming turn, whether
-/// you're ahead (green) or behind (red) the ghost at this exact spot,
-/// and the route distance left. Off route it becomes the way back.
-struct GhostPanel: View {
-    let status: GhostStatus
-
-    var body: some View {
-        HStack(spacing: 6) {
-            switch status.state {
-            case .onRoute:
-                Image(systemName: "figure.run.circle")
-                    .font(.body)
-                    .foregroundStyle(.purple)
-                if let turn = status.turn {
-                    Image(systemName: turn.symbolName)
-                        .font(.title3.weight(.bold))
-                }
-                Text(Format.signedDuration(status.deltaSeconds))
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(status.deltaSeconds >= 0 ? .green : .red)
-                Spacer()
-                Text(Format.distance(status.remainingMeters))
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            case .offRoute:
-                Image(systemName: "location.slash")
-                    .font(.body)
-                    .foregroundStyle(.red)
-                Text("Off route")
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                if let direction = status.directionToRoute {
-                    Image(systemName: direction.symbolName)
-                        .font(.title3.weight(.bold))
-                }
-                if let meters = status.metersToRoute {
-                    Text("\(Int(meters.rounded())) m")
-                        .font(.body)
-                }
-            case .finished:
-                Image(systemName: "figure.run.circle")
-                    .font(.body)
-                    .foregroundStyle(.purple)
-                Text(status.deltaSeconds >= 0 ? "Ghost beaten" : "Ghost won")
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                Text(Format.signedDuration(status.deltaSeconds))
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(status.deltaSeconds >= 0 ? .green : .red)
-            }
-        }
-        .padding(7)
-        .background(.purple.opacity(0.15), in: RoundedRectangle(cornerRadius: 9))
-    }
-}
+// MARK: - Persistent panels — body-size minimum
 
 /// Take-me-home guidance: at a known fork, the first turn of the fastest
 /// known way back plus its ETA; between forks, a plain arrow toward the

@@ -10,17 +10,17 @@ struct RouteMeta: Codable, Identifiable {
     var totalSeconds: TimeInterval
     var totalDistanceMeters: Double
     /// Set when the user favourites this route. Favourites are named,
-    /// listed first in the ghost picker, and never pruned.
+    /// listed first in the Routes list, and never pruned.
     var favouriteName: String? = nil
 
     var isFavourite: Bool { favouriteName != nil }
 }
 
 /// Twelve months of past routes, kept on the watch — the training data
-/// for intersection predictions, segment comparisons and ghosts. Each
+/// for intersection predictions and segment comparisons. Each
 /// run's points live in their own file; only the small index is held in
 /// memory, so a year of history doesn't weigh down app launch. Full
-/// tracks load on demand (one for a ghost, all — off the main actor —
+/// tracks load on demand (all at once, off the main actor,
 /// for the route graph).
 @MainActor
 @Observable

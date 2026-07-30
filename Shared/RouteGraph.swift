@@ -41,6 +41,13 @@ struct RouteGraph {
             neighbours(radius: 1)
         }
 
+        /// The cell's centre, inverting the grid snap (~9 m worst case).
+        var centerCoordinate: CLLocationCoordinate2D {
+            let latitude = (Double(y) + 0.5) * RouteGraph.cellMeters / 111_320
+            let longitude = (Double(x) + 0.5) * RouteGraph.cellMeters / (111_320 * cos(latitude * .pi / 180))
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+
         /// The square of cells within `radius` of this one (inclusive).
         func neighbours(radius: Int) -> [GridKey] {
             (-radius...radius).flatMap { dy in

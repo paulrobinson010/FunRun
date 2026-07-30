@@ -50,7 +50,7 @@ struct DemoForkScene: View {
     }
 }
 
-/// A composed mid-run moment: 4.2 km in, ahead of the ghost.
+/// A composed mid-run moment: 4.2 km in, up on the current segment.
 struct DemoMetricsScene: View {
     var body: some View {
         ScrollView {
@@ -62,11 +62,6 @@ struct DemoMetricsScene: View {
                     Spacer()
                 }
 
-                GhostPanel(status: GhostStatus(
-                    state: .onRoute, deltaSeconds: 15, remainingMeters: 2_300,
-                    turn: .straight, directionToRoute: nil, metersToRoute: nil
-                ))
-
                 Text(Format.duration(1_572))
                     .font(.system(.title, design: .rounded).weight(.semibold))
                     .foregroundStyle(.yellow)
@@ -74,6 +69,8 @@ struct DemoMetricsScene: View {
                 demoMetricRow(value: Format.pace(334), unit: "/km", icon: "speedometer")
                 demoMetricRow(value: Format.distance(4_210), unit: "", icon: "point.topleft.down.curvedto.point.bottomright.up")
                 demoMetricRow(value: "152", unit: "bpm", icon: "heart.fill", iconColor: .red)
+
+                SegmentStatusRow(toGoMeters: 640, deltaSeconds: -4)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(.horizontal, 4)

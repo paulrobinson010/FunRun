@@ -7,7 +7,6 @@ struct StartView: View {
     let sync: WatchSync
 
     @State private var selectedShoeID: UUID?
-    @State private var selectedGhostID: UUID?
     /// Remembers the last pair used, so forgetting to pick doesn't lose
     /// wear tracking.
     @AppStorage("lastShoeID") private var lastShoeID: String = ""
@@ -50,29 +49,14 @@ struct StartView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if !workout.ghostCandidates.isEmpty {
-                    NavigationLink {
-                        GhostPickerView(workout: workout, selectedID: $selectedGhostID)
-                    } label: {
-                        HStack {
-                            Image(systemName: "figure.run.circle")
-                                .foregroundStyle(.purple)
-                            Text(selectedGhostLabel)
-                                .lineLimit(1)
-                        }
-                        .font(.footnote)
-                    }
-                }
-
                 Button {
                     let shoe = sync.activeShoes.first { $0.id == selectedShoeID }
-                    let ghost = selectedGhostID.flatMap { workout.ghostRoute(withID: $0) }
                     if let shoe {
                         lastShoeID = shoe.id.uuidString
                     }
                     Task {
                         workout.dismissFailure()
-                        await workout.start(with: shoe, ghost: ghost)
+                        await workout.start(with: shoe)
                     }
                 } label: {
                     if workout.phase == .starting {
@@ -101,6 +85,19 @@ struct StartView: View {
                     }
                     .font(.footnote)
                 }
+
+                if !workout.savedRoutes.isEmpty {
+                    NavigationLink {
+                        RoutesView(workout: workout)
+                    } label: {
+                        HStack {
+                            Image(systemName: "star")
+                                .foregroundStyle(.yellow)
+                            Text("Routes")
+                        }
+                        .font(.footnote)
+                    }
+                }
             }
         }
         .onAppear {
@@ -111,13 +108,6 @@ struct StartView: View {
                     ?? sync.activeShoes.first?.id
             }
         }
-    }
-
-    private var selectedGhostLabel: String {
-        guard let meta = workout.ghostCandidates.first(where: { $0.id == selectedGhostID }) else {
-            return "No ghost"
-        }
-        return meta.ghostLabel
     }
 }
 
@@ -145,32 +135,18 @@ struct RunPaceSettingView: View {
     }
 }
 
-/// Routes to race: named favourites first, then the last 12 months,
-/// newest first. Swipe a route to favourite (and name) it, swipe a
-/// favourite to rename or remove it.
-struct GhostPickerView: View {
+/// Stored routes: named favourites first, then the last 12 months,
+/// newest first. Tap a route to favourite (and name) it; swipe a
+/// favourite to rename or remove it. Favourites carry their names to
+/// the phone backup.
+struct RoutesView: View {
     let workout: WorkoutManager
-    @Binding var selectedID: UUID?
 
-    @Environment(\.dismiss) private var dismiss
     @State private var naming: RouteMeta?
 
     var body: some View {
         List {
-            Button {
-                selectedID = nil
-                dismiss()
-            } label: {
-                HStack {
-                    Text("No ghost")
-                    Spacer()
-                    if selectedID == nil {
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-
-            let favourites = workout.ghostCandidates.filter(\.isFavourite)
+            let favourites = workout.savedRoutes.filter(\.isFavourite)
                 .sorted { ($0.favouriteName ?? "") < ($1.favouriteName ?? "") }
             if !favourites.isEmpty {
                 Section("Favourites") {
@@ -193,20 +169,12 @@ struct GhostPickerView: View {
             }
 
             Section("Recent") {
-                ForEach(workout.ghostCandidates.filter { !$0.isFavourite }) { meta in
+                ForEach(workout.savedRoutes.filter { !$0.isFavourite }) { meta in
                     routeRow(meta, title: meta.date.formatted(.dateTime.day().month(.abbreviated).year(.twoDigits)))
-                        .swipeActions {
-                            Button {
-                                naming = meta
-                            } label: {
-                                Image(systemName: "star.fill")
-                            }
-                            .tint(.yellow)
-                        }
                 }
             }
         }
-        .navigationTitle("Ghost")
+        .navigationTitle("Routes")
         .sheet(item: $naming) { meta in
             FavouriteNameView(meta: meta) { name in
                 workout.setFavourite(routeID: meta.id, name: name)
@@ -216,8 +184,7 @@ struct GhostPickerView: View {
 
     private func routeRow(_ meta: RouteMeta, title: String) -> some View {
         Button {
-            selectedID = meta.id
-            dismiss()
+            naming = meta
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
@@ -229,9 +196,6 @@ struct GhostPickerView: View {
                     Text(title)
                         .lineLimit(1)
                     Spacer()
-                    if selectedID == meta.id {
-                        Image(systemName: "checkmark")
-                    }
                 }
                 Text("\(Format.distance(meta.totalDistanceMeters)) · \(Format.duration(meta.totalSeconds))")
                     .font(.footnote)
@@ -271,14 +235,3 @@ struct FavouriteNameView: View {
     }
 }
 
-extension RouteMeta {
-    /// The favourite's name, or "22 Jul 25 · 7.51 km" — enough to
-    /// recognise a route by.
-    var ghostLabel: String {
-        if let favouriteName {
-            return favouriteName
-        }
-        let day = date.formatted(.dateTime.day().month(.abbreviated).year(.twoDigits))
-        return "\(day) · \(Format.distance(totalDistanceMeters))"
-    }
-}
