@@ -80,26 +80,37 @@ enum RouteNetworkBuilder {
         var forkPoints: [RouteGraph.GridKey: CLLocationCoordinate2D] = forkSums.mapValues {
             CLLocationCoordinate2D(latitude: $0.latitude / $0.count, longitude: $0.longitude / $0.count)
         }
-        // Keyed by endpoints plus the initial-bearing sector, so a loop
-        // that leaves a fork and returns to the same fork keeps its two
-        // distinct exits, while repeat traversals of the same stretch
-        // dedupe to one drawn line per direction.
-        struct SegmentKey: Hashable {
-            let from: RouteGraph.GridKey
-            let to: RouteGraph.GridKey
-            let sector: Int
+        // A segment is one *physical* stretch, whichever direction it
+        // was run and whichever run recorded it. Two traversals count as
+        // the same stretch when both ends and the midpoint all land
+        // within ~3 cells of each other — direction-agnostic, tolerant
+        // of drift, but two genuinely different routes between the same
+        // forks keep distinct midpoints and both get drawn.
+        struct SegmentSignature {
+            var endA: RouteGraph.GridKey
+            var endB: RouteGraph.GridKey
+            var mid: RouteGraph.GridKey
         }
-        var segmentGeometry: [SegmentKey: [CLLocationCoordinate2D]] = [:]
+        var accepted: [(signature: SegmentSignature, coordinates: [CLLocationCoordinate2D])] = []
+
+        func near(_ a: RouteGraph.GridKey, _ b: RouteGraph.GridKey) -> Bool {
+            max(abs(a.x - b.x), abs(a.y - b.y)) <= 3
+        }
+
+        func isDuplicate(_ signature: SegmentSignature) -> Bool {
+            accepted.contains { existing in
+                let e = existing.signature
+                let sameEnds = (near(e.endA, signature.endA) && near(e.endB, signature.endB))
+                    || (near(e.endA, signature.endB) && near(e.endB, signature.endA))
+                return sameEnds && near(e.mid, signature.mid)
+            }
+        }
 
         func emit(_ run: RouteRun, from: (key: RouteGraph.GridKey, index: Int), to: (key: RouteGraph.GridKey, index: Int)) {
             // Same-fork loops need real length; different-fork stretches
             // just need a few points. Guards out dwell noise at a fork.
             let minimumGap = from.key == to.key ? 10 : 3
             guard to.index - from.index >= minimumGap else { return }
-            let bearingSampleEnd = min(from.index + 3, to.index)
-            let initialBearing = RouteGraph.bearing(from: run.points[from.index], to: run.points[bearingSampleEnd])
-            let key = SegmentKey(from: from.key, to: to.key, sector: Int(initialBearing / 60) % 6)
-            guard segmentGeometry[key] == nil else { return }
             var coordinates = run.points[from.index...to.index].map {
                 CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
             }
@@ -112,7 +123,13 @@ enum RouteNetworkBuilder {
             if let anchor = forkPoints[to.key] {
                 coordinates.append(anchor)
             }
-            segmentGeometry[key] = coordinates
+            let signature = SegmentSignature(
+                endA: RouteGraph.GridKey(coordinates[0]),
+                endB: RouteGraph.GridKey(coordinates[coordinates.count - 1]),
+                mid: RouteGraph.GridKey(coordinates[coordinates.count / 2])
+            )
+            guard !isDuplicate(signature) else { return }
+            accepted.append((signature, coordinates))
         }
 
         for run in runs {
@@ -141,9 +158,9 @@ enum RouteNetworkBuilder {
             emit(run, from: lastNode, to: (endCell, endIndex))
         }
 
-        let paths: [RouteNetwork.SegmentPath] = segmentGeometry.values.prefix(maximumSegments)
+        let paths: [RouteNetwork.SegmentPath] = accepted.prefix(maximumSegments)
             .enumerated()
-            .map { RouteNetwork.SegmentPath(id: $0.offset, coordinates: $0.element) }
+            .map { RouteNetwork.SegmentPath(id: $0.offset, coordinates: $0.element.coordinates) }
 
         let allPoints = runs.flatMap(\.points)
         let latitudes = allPoints.map(\.latitude)
