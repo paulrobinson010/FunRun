@@ -78,21 +78,6 @@ final class WorkoutManager: NSObject {
         }
     }
 
-    /// Stored routes (last 12 months, newest first) — the Routes list
-    /// on the start screen, for favouriting and naming.
-    var savedRoutes: [RouteMeta] {
-        routeStore.metas
-    }
-
-    /// Notified when a favourite changes, so the phone backup can follow.
-    var onFavouriteChanged: ((UUID, String?) -> Void)?
-
-    /// Name (or rename) a favourite route; nil removes the favourite.
-    func setFavourite(routeID: UUID, name: String?) {
-        routeStore.setFavourite(routeID, name: name)
-        onFavouriteChanged?(routeID, name)
-    }
-
     /// Called with the finished summary once the effort score is in.
     var onFinished: ((RunSummary) -> Void)?
 
