@@ -4,13 +4,12 @@ import SwiftUI
 /// worth telling a runner is worth telling them in huge type.
 enum SessionOverlay {
     case split(KmSplit)
-    case fork(RoutePrediction)
     case segment(SegmentComparison)
 }
 
-/// The in-workout screens: controls, big live metrics, and a dedicated
-/// forks page — with full-screen pop-ups for splits, fork arrivals and
-/// segment results (auto-dismiss after a few seconds, tap to dismiss).
+/// The in-workout screens: controls and big live metrics — with
+/// full-screen pop-ups for splits and segment results (auto-dismiss
+/// after a few seconds, tap to dismiss).
 struct SessionView: View {
     let workout: WorkoutManager
 
@@ -25,24 +24,17 @@ struct SessionView: View {
                     .tag(0)
                 MetricsView(workout: workout)
                     .tag(1)
-                ForksView(workout: workout)
-                    .tag(2)
             }
             .tabViewStyle(.page)
 
             if let overlay {
                 EventOverlay(overlay: overlay) {
-                    if case .fork = overlay {
-                        selectedTab = 2
-                    }
                     dismiss()
                 }
                 .transition(.opacity)
             }
         }
-        // Registration order matters when events coincide (a segment
-        // completes exactly as a fork appears): later wins, and the
-        // fork is the actionable one.
+        // Registration order matters when events coincide: later wins.
         .onChange(of: workout.segmentComparison) { _, comparison in
             if let comparison {
                 show(.segment(comparison), for: 5)
@@ -51,11 +43,6 @@ struct SessionView: View {
         .onChange(of: workout.kmSplit) { _, split in
             if let split {
                 show(.split(split), for: 5)
-            }
-        }
-        .onChange(of: workout.routePrediction?.nodeKey) { _, nodeKey in
-            if nodeKey != nil, let prediction = workout.routePrediction {
-                show(.fork(prediction), for: 8)
             }
         }
     }
@@ -109,23 +96,15 @@ struct EventOverlay: View {
                     .foregroundStyle(.green)
                 Text(Format.duration(split.seconds))
                     .font(.system(size: 44, weight: .bold, design: .rounded))
-                if let delta = split.deltaToPrevious {
-                    Text(Format.signedDuration(delta))
+                // vs your own recent history over the same ground;
+                // stretches you've never run before contribute zero.
+                if abs(split.historyDeltaSeconds) >= 1 {
+                    Text(Format.signedDuration(split.historyDeltaSeconds))
                         .font(.system(.title2, design: .rounded).weight(.bold))
-                        .foregroundStyle(delta <= 0 ? .green : .red)
-                }
-            }
-        case .fork(let prediction):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("FORK", systemImage: "arrow.triangle.branch")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.orange)
-                ForEach(prediction.choices.prefix(2)) { choice in
-                    ForkChoiceRow(choice: choice)
-                }
-                if prediction.choices.count > 2 {
-                    Text("more on the forks page →")
-                        .font(.body)
+                        .foregroundStyle(split.historyDeltaSeconds <= 0 ? .green : .red)
+                } else {
+                    Text("±0 vs your usual")
+                        .font(.system(.title2, design: .rounded).weight(.bold))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -223,77 +202,6 @@ struct MetricsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-    }
-}
-
-// MARK: - Forks page
-
-/// The dedicated page for route intelligence: the current fork in full,
-/// readable type, or an honest empty state — plus home guidance.
-struct ForksView: View {
-    let workout: WorkoutManager
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Forks", systemImage: "arrow.triangle.branch")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.orange)
-
-                if let prediction = workout.routePrediction {
-                    ForEach(prediction.choices) { choice in
-                        ForkChoiceRow(choice: choice)
-                    }
-                } else {
-                    Text("No fork nearby")
-                        .font(.title3.weight(.semibold))
-                    Text("Choices appear when you reach a junction you've run before.")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let home = workout.homeGuidance {
-                    HomePanel(guidance: home)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .padding(.horizontal, 4)
-        }
-    }
-}
-
-/// One branch, in type you can read at pace: direction, time to finish,
-/// calories, and how often you go that way.
-struct ForkChoiceRow: View {
-    let choice: RoutePrediction.Choice
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: choice.direction.symbolName)
-                .font(.system(.title2, design: .rounded).weight(.bold))
-                .foregroundStyle(choice.isRecommended ? .green : .orange)
-                .frame(width: 30)
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("\(choice.finishInMinutes) min")
-                        .font(.system(.title3, design: .rounded).weight(.bold))
-                    if choice.isRecommended {
-                        Image(systemName: "target")
-                            .font(.body)
-                            .foregroundStyle(.green)
-                    }
-                }
-                Text("\(choice.totalCalories) cal · \(choice.probabilityPercent)%")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(6)
-        .background(
-            choice.isRecommended ? AnyShapeStyle(.green.opacity(0.18)) : AnyShapeStyle(.white.opacity(0.06)),
-            in: RoundedRectangle(cornerRadius: 10)
-        )
     }
 }
 

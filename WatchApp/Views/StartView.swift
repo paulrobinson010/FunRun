@@ -8,9 +8,6 @@ struct StartView: View {
 
     @State private var selectedShoeID: UUID?
     @State private var selectedGhostID: UUID?
-    /// Session length goal — at forks, the branch that best hits it gets
-    /// starred. 0 = no target.
-    @State private var targetMinutes = 0
     /// Remembers the last pair used, so forgetting to pick doesn't lose
     /// wear tracking.
     @AppStorage("lastShoeID") private var lastShoeID: String = ""
@@ -53,15 +50,6 @@ struct StartView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Picker("Target", selection: $targetMinutes) {
-                    Text("No target").tag(0)
-                    ForEach([20, 25, 30, 35, 40, 45, 50, 60, 75, 90], id: \.self) { minutes in
-                        Text("\(minutes) min target").tag(minutes)
-                    }
-                }
-                .labelsHidden()
-                .frame(height: 44)
-
                 if !workout.ghostCandidates.isEmpty {
                     NavigationLink {
                         GhostPickerView(workout: workout, selectedID: $selectedGhostID)
@@ -84,11 +72,7 @@ struct StartView: View {
                     }
                     Task {
                         workout.dismissFailure()
-                        await workout.start(
-                            with: shoe,
-                            ghost: ghost,
-                            targetMinutes: targetMinutes > 0 ? targetMinutes : nil
-                        )
+                        await workout.start(with: shoe, ghost: ghost)
                     }
                 } label: {
                     if workout.phase == .starting {

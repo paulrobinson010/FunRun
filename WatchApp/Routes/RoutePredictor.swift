@@ -110,10 +110,46 @@ final class RoutePredictor: Sendable {
     private let homeCoordinate: CLLocationCoordinate2D?
     private let homeRoute: [RouteGraph.GridKey: (seconds: TimeInterval, exitBearing: Double)]
 
+    /// Median historical speed per cell, from the comparison window —
+    /// "how fast do I usually cover this exact ground". Feeds the km
+    /// split's vs-history delta.
+    private let speedField: [RouteGraph.GridKey: Double]
+
+    /// Your usual speed at this spot, or nil where you've never run.
+    func referenceSpeed(at coordinate: CLLocationCoordinate2D) -> Double? {
+        var speeds: [Double] = []
+        for cell in RouteGraph.GridKey(coordinate).selfAndNeighbours {
+            if let speed = speedField[cell] {
+                speeds.append(speed)
+            }
+        }
+        guard !speeds.isEmpty else { return nil }
+        return speeds.sorted()[speeds.count / 2]
+    }
+
     init(runs: [RouteRun]) {
         graph = RouteGraph.build(from: runs)
         let cutoff = Date().addingTimeInterval(-Double(Self.comparisonWindowDays) * 86_400)
-        segments = SegmentIndex.build(from: runs.filter { $0.date >= cutoff }, graph: graph)
+        let windowRuns = runs.filter { $0.date >= cutoff }
+        segments = SegmentIndex.build(from: windowRuns, graph: graph)
+
+        var field: [RouteGraph.GridKey: [Double]] = [:]
+        for run in windowRuns {
+            for index in 0..<max(0, run.points.count - 1) {
+                let a = run.points[index]
+                let b = run.points[index + 1]
+                let dt = b.elapsed - a.elapsed
+                let dd = b.distanceMeters - a.distanceMeters
+                guard dt > 0.5, dd > 1 else { continue }
+                let speed = dd / dt
+                guard speed > 0.3, speed < 9 else { continue }
+                let cell = RouteGraph.GridKey(CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude))
+                field[cell, default: []].append(speed)
+            }
+        }
+        speedField = field.mapValues { speeds in
+            speeds.sorted()[speeds.count / 2]
+        }
         let totalMeters = runs.reduce(0) { $0 + $1.totalDistanceMeters }
         let totalSeconds = runs.reduce(0) { $0 + $1.totalSeconds }
         historicalAverageSpeed = (totalMeters > 1000 && totalSeconds > 0) ? totalMeters / totalSeconds : nil

@@ -2,9 +2,9 @@ import CoreLocation
 import SwiftUI
 
 /// Screenshot scenes for `-demo` launches: the real start screen (with
-/// demo shoes seeded through WatchSync), a mid-run metrics tableau, the
-/// forks page, and the km-split pop-up — one perfect frame per feature.
-/// Nothing here touches HealthKit, the route store, or sync.
+/// demo shoes seeded through WatchSync), a mid-run metrics tableau, and
+/// the km-split pop-up — one perfect frame per feature. Nothing here
+/// touches HealthKit, the route store, or sync.
 struct DemoRootView: View {
     let workout: WorkoutManager
     let sync: WatchSync
@@ -13,7 +13,6 @@ struct DemoRootView: View {
         TabView {
             StartView(workout: workout, sync: sync)
             DemoMetricsScene()
-            DemoForkScene()
             DemoSplitScene()
         }
         .tabViewStyle(.page)
@@ -66,42 +65,11 @@ struct DemoMetricsScene: View {
     }
 }
 
-/// The forks page mid-decision: two ways home, one on target.
-struct DemoForkScene: View {
-    private var choices: [RoutePrediction.Choice] {
-        [
-            RoutePrediction.Choice(
-                id: 0, direction: .left, finishInMinutes: 25, totalCalories: 548,
-                probabilityPercent: 70, sampleCount: 14, nextForkSeconds: 250, isRecommended: true
-            ),
-            RoutePrediction.Choice(
-                id: 1, direction: .right, finishInMinutes: 44, totalCalories: 802,
-                probabilityPercent: 30, sampleCount: 6, nextForkSeconds: 385
-            ),
-        ]
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Forks", systemImage: "arrow.triangle.branch")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.orange)
-                ForEach(choices) { choice in
-                    ForkChoiceRow(choice: choice)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .padding(.horizontal, 4)
-        }
-    }
-}
-
 /// The km-split pop-up, frozen at its best moment.
 struct DemoSplitScene: View {
     var body: some View {
         EventOverlay(
-            overlay: .split(KmSplit(kilometre: 4, seconds: 328, deltaToPrevious: -7, at: Date())),
+            overlay: .split(KmSplit(kilometre: 4, seconds: 328, historyDeltaSeconds: -7, at: Date())),
             onTap: {}
         )
     }

@@ -4,12 +4,14 @@ import HealthKit
 import Observation
 import WatchKit
 
-/// A completed kilometre: its moving time and how it compared to the one
-/// before.
+/// A completed kilometre: its moving time, and how it compared to your
+/// own recent history over the SAME ground — stretches you've never run
+/// before contribute zero, so a detour doesn't fake a good or bad km.
+/// Negative = faster than your usual.
 struct KmSplit: Equatable {
     var kilometre: Int
     var seconds: TimeInterval
-    var deltaToPrevious: TimeInterval?
+    var historyDeltaSeconds: TimeInterval
     var at: Date
 }
 
@@ -122,7 +124,11 @@ final class WorkoutManager: NSObject {
     // Kilometre split bookkeeping (moving time, from builder elapsed).
     private var nextSplitMeters: Double = 1000
     private var lastSplitElapsed: TimeInterval = 0
-    private var previousSplitSeconds: TimeInterval?
+    // vs-history accumulator: each active second on known ground adds
+    // (time spent − time your history says that ground takes).
+    private var splitHistoryDelta: TimeInterval = 0
+    private var lastDeltaTickAt: Date?
+    private var lastDeltaDistance: Double = 0
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
     private var classifier = ActivityClassifier()
@@ -221,7 +227,9 @@ final class WorkoutManager: NSObject {
             kmSplit = nil
             nextSplitMeters = 1000
             lastSplitElapsed = 0
-            previousSplitSeconds = nil
+            splitHistoryDelta = 0
+            lastDeltaTickAt = nil
+            lastDeltaDistance = 0
             // A year of tracks is too much to crunch on the main actor;
             // predictions simply stay off until the graph is ready
             // (they need a GPS fix first anyway). The same pass upgrades
@@ -406,6 +414,7 @@ final class WorkoutManager: NSObject {
                 }
             }
             updateRoutePrediction()
+            accumulateHistoryDelta(now: now)
             updateKmSplit()
         case .paused(auto: true):
             if speed >= resumeSpeed {
@@ -431,18 +440,37 @@ final class WorkoutManager: NSObject {
         homeGuidance = predictor.homeGuidance(at: location, course: course)
     }
 
+    /// While moving over ground your history knows, compare each second
+    /// spent against how long your usual speed says that stretch takes.
+    /// Unknown ground contributes nothing, per the field rule: a km that
+    /// was 700m known and 3s up stays 3s up however the new 300m goes.
+    private func accumulateHistoryDelta(now: Date) {
+        defer {
+            lastDeltaTickAt = now
+            lastDeltaDistance = distanceMeters
+        }
+        guard let lastTick = lastDeltaTickAt else { return }
+        let dt = now.timeIntervalSince(lastTick)
+        guard dt > 0.2, dt < 5 else { return }
+        let dd = max(0, distanceMeters - lastDeltaDistance)
+        guard let predictor = routePredictor,
+              let location = routeRecorder.lastLocation,
+              let reference = predictor.referenceSpeed(at: location.coordinate),
+              reference > 0.4 else { return }
+        splitHistoryDelta += dt - dd / reference
+    }
+
     /// Crossing a kilometre boundary taps the wrist and flashes the
-    /// split's moving time with its delta to the previous kilometre.
+    /// split's moving time with its vs-history delta.
     private func updateKmSplit() {
         if distanceMeters >= nextSplitMeters {
-            let seconds = elapsed - lastSplitElapsed
             kmSplit = KmSplit(
                 kilometre: Int((nextSplitMeters / 1000).rounded()),
-                seconds: seconds,
-                deltaToPrevious: previousSplitSeconds.map { seconds - $0 },
+                seconds: elapsed - lastSplitElapsed,
+                historyDeltaSeconds: splitHistoryDelta,
                 at: Date()
             )
-            previousSplitSeconds = seconds
+            splitHistoryDelta = 0
             lastSplitElapsed = elapsed
             nextSplitMeters += 1000
             WKInterfaceDevice.current().play(.notification)
@@ -466,8 +494,8 @@ final class WorkoutManager: NSObject {
         ghostStatus = fresh ?? ghostStatus
     }
 
-    /// Look up the current spot in the route graph. A haptic tap announces
-    /// arrival at a new intersection so the wrist doesn't need watching.
+    /// Look up the current spot in the route graph, driving segment
+    /// timing at each fork passage.
     private func updateRoutePrediction() {
         guard let predictor = routePredictor,
               let location = routeRecorder.lastLocation,
@@ -485,8 +513,9 @@ final class WorkoutManager: NSObject {
             elapsedSeconds: wallElapsed,
             targetSeconds: targetSeconds
         )
+        // Fork UI is off the watch for now (field feedback: not useful
+        // yet in this form) — passages still feed segment timing.
         if let fresh, fresh.nodeKey != routePrediction?.nodeKey {
-            WKInterfaceDevice.current().play(.directionUp)
             recordDecisionPassage(at: fresh.nodeKey, predictor: predictor)
         }
         routePrediction = fresh

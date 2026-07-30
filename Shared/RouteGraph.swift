@@ -31,7 +31,7 @@ struct RouteGraph {
             x = Int((coordinate.longitude * metersPerDegreeLongitude / RouteGraph.cellMeters).rounded(.down))
         }
 
-        private init(x: Int, y: Int) {
+        init(x: Int, y: Int) {
             self.x = x
             self.y = y
         }
@@ -96,24 +96,40 @@ struct RouteGraph {
                 ))
             }
         }
-        // A fork is a cell whose traffic connects out in three or more
+        // A fork is a place whose traffic connects out in three or more
         // distinct directions — its "links": where each pass came from
-        // (reversed) and where it left to. A plain path or an
-        // out-and-back has two links; a zigzag's hairpin cell still has
-        // two; a junction has three or more. Strictly per-cell: pooling
-        // a neighbourhood mixes a switchback's separate legs into fake
-        // junctions, and the denser direction spread chains real
-        // corridors into too few clusters.
-        var rawJunctions: Set<GridKey> = []
+        // (reversed) and where it left to. Detection runs on a coarse
+        // (~36m) grid: day-to-day drift lands the same junction's
+        // strands in one coarse cell (fine cells miss them), and
+        // pooling repeat passes per corridor lets jitter merge instead
+        // of splitting into phantom directions. Two guards keep it
+        // honest: at least one direction must be corroborated (used
+        // twice — a real corridor), and a plain path, out-and-back or
+        // zigzag leg-pair never exceeds two direction clusters.
+        func coarse(_ value: Int) -> Int {
+            value >= 0 ? value / 2 : (value - 1) / 2
+        }
+        var coarseTraversals: [GridKey: [Traversal]] = [:]
+        var coarseToFine: [GridKey: [GridKey]] = [:]
         for (key, traversals) in graph.nodes {
-            guard traversals.count >= 2 else { continue }
+            let coarseKey = GridKey(x: coarse(key.x), y: coarse(key.y))
+            coarseTraversals[coarseKey, default: []].append(contentsOf: traversals)
+            coarseToFine[coarseKey, default: []].append(key)
+        }
+        var rawJunctions: Set<GridKey> = []
+        for (coarseKey, traversals) in coarseTraversals {
+            guard traversals.count >= 3 else { continue }
             var links: [Double] = []
             for traversal in traversals {
                 links.append(traversal.outgoingBearing)
                 links.append((traversal.approachBearing + 180).truncatingRemainder(dividingBy: 360))
             }
-            if clusterBearings(links, width: 50).count >= 3 {
-                rawJunctions.insert(key)
+            let clusters = clusterBearings(links, width: 50)
+            guard clusters.count >= 3, clusters.contains(where: { $0.count >= 2 }) else { continue }
+            if let canonical = coarseToFine[coarseKey]?.max(by: {
+                (graph.nodes[$0]?.count ?? 0) < (graph.nodes[$1]?.count ?? 0)
+            }) {
+                rawJunctions.insert(canonical)
             }
         }
         // Neighbourhood detection marks a blob of cells around each real

@@ -57,7 +57,9 @@ struct NetworkView: View {
                     }
                 }
             }
-            .task {
+            // Re-derives the networks whenever a run lands from the
+            // watch, so the map is fresh without relaunching the app.
+            .task(id: model.routeBackup.entries.count) {
                 await load()
             }
         }
@@ -106,7 +108,6 @@ struct NetworkView: View {
     }
 
     private func load() async {
-        guard loading else { return }
         let runs: [RouteRun]
         if DemoMode.isActive {
             runs = DemoData.runs.compactMap { summary in
@@ -128,9 +129,13 @@ struct NetworkView: View {
             RouteNetworkBuilder.build(from: runs)
         }.value
         networks = built
-        selectedID = built.first?.id
-        if let first = built.first {
-            position = .region(first.region)
+        // Only reset the selection and camera when there wasn't a valid
+        // one — a refresh mid-browse keeps the user where they were.
+        if !built.contains(where: { $0.id == selectedID }) {
+            selectedID = built.first?.id
+            if let first = built.first {
+                position = .region(first.region)
+            }
         }
         loading = false
 
