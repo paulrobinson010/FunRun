@@ -31,6 +31,10 @@ struct RunSummary: Codable, Identifiable, Hashable {
     var savedWorkouts: [RunSegment]? = nil
     /// The route, thinned for drawing on the phone's map (~20 m spacing).
     var track: [TrackPoint]? = nil
+    /// Walking effort 1–10, only when the outing had both walking and
+    /// running and they were scored separately — `effort` is then the
+    /// running score.
+    var walkEffort: Int? = nil
 
     var distanceKm: Double { distanceMeters / 1000 }
 

@@ -29,7 +29,7 @@ struct RootView: View {
         switch workout.phase {
         case .idle, .starting, .failed:
             StartView(workout: workout, sync: sync)
-        case .active, .paused:
+        case .active, .paused, .ending:
             SessionView(workout: workout)
         case .ended:
             SummaryView(workout: workout)

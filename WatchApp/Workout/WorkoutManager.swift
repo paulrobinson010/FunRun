@@ -29,6 +29,9 @@ final class WorkoutManager: NSObject {
         case starting
         case active
         case paused(auto: Bool)
+        /// End pressed; HealthKit is finishing the saves (takes a few
+        /// seconds). Keeps the End button from being pressed twice.
+        case ending
         /// Session over, waiting on the effort score.
         case ended
         case failed(String)
@@ -146,6 +149,7 @@ final class WorkoutManager: NSObject {
 
     private var lastMovementAt = Date()
     private var pendingAutoPause = false
+    private var finishStarted = false
     private var autoPauseCount = 0
     /// Auto-pause only arms once movement has actually been seen: at the
     /// start GPS and the pedometer take several seconds to warm up, and
@@ -285,29 +289,32 @@ final class WorkoutManager: NSObject {
 
     func end() {
         guard phase == .active || phase.isPaused else { return }
+        // HealthKit takes several seconds to wind the session down;
+        // flipping the phase now gives immediate feedback and makes a
+        // second press a no-op instead of an "invalid operation" error.
+        phase = .ending
         session?.end()
     }
 
-    /// Save the perceived-effort score (nil = skipped), hand the summary
-    /// off, and go back to idle.
-    func finish(effort: Int?) async {
+    /// Save the perceived-effort scores (nil = skipped / not performed),
+    /// hand the summary off, and go back to idle.
+    func finish(runEffort: Int?, walkEffort: Int?) async {
         guard phase == .ended else { return }
-        if let effort {
-            await saveEffortToHealthKit(effort)
-        }
+        await saveEffortsToHealthKit(run: runEffort, walk: walkEffort)
         let summary = RunSummary(
             startDate: startDate,
             endDate: endDate,
             activeSeconds: elapsed,
             distanceMeters: distanceMeters,
             averageHeartRate: averageHeartRate,
-            effort: effort,
+            effort: runEffort ?? walkEffort,
             shoeID: shoe?.id,
             shoeName: shoe?.displayName,
             segments: segments,
             autoPauseCount: autoPauseCount,
             savedWorkouts: savedWorkoutChunks,
-            track: mapTrack()
+            track: mapTrack(),
+            walkEffort: runEffort != nil ? walkEffort : nil
         )
         onFinished?(summary)
         reset()
@@ -572,6 +579,10 @@ final class WorkoutManager: NSObject {
     // MARK: - Finishing
 
     private func finishCollection(at date: Date) async {
+        // Both the .ended state change and a failure during .ending can
+        // land here; only the first one gets to finish the session.
+        guard !finishStarted else { return }
+        finishStarted = true
         stopPedometer()
         routeRecorder.stop()
         routePrediction = nil
@@ -763,13 +774,16 @@ final class WorkoutManager: NSObject {
         return workout
     }
 
-    private func saveEffortToHealthKit(_ effort: Int) async {
+    private func saveEffortsToHealthKit(run: Int?, walk: Int?) async {
         guard #available(watchOS 11.0, *) else { return }
-        // One score for the outing, related to every workout it produced.
+        // Each saved workout gets the score for its own mode — a chained
+        // outing's walk and run workouts can honestly differ.
         for workout in finishedWorkouts {
+            let score = workout.workoutActivityType == .walking ? (walk ?? run) : (run ?? walk)
+            guard let score else { continue }
             let sample = HKQuantitySample(
                 type: HKQuantityType(.workoutEffortScore),
-                quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: Double(effort)),
+                quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: Double(score)),
                 start: workout.startDate,
                 end: workout.endDate
             )
@@ -786,6 +800,7 @@ final class WorkoutManager: NSObject {
     private func reset() {
         session = nil
         builder = nil
+        finishStarted = false
         finishedWorkouts = []
         savedWorkoutChunks = []
         heartRateHistory = []
@@ -833,6 +848,9 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
         date: Date
     ) {
         Task { @MainActor in
+            // Once End is pressed, run/pause flickers from the winding-
+            // down session must not pull the UI back into the workout.
+            if self.phase == .ending, toState != .ended { return }
             switch toState {
             case .running:
                 self.lastMovementAt = date
@@ -855,7 +873,17 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         Task { @MainActor in
-            self.phase = .failed(error.localizedDescription)
+            switch self.phase {
+            case .ended:
+                // Post-finish noise; the summary is already up.
+                break
+            case .ending:
+                // The session died on the way down — salvage what was
+                // collected rather than losing the run to an error page.
+                await self.finishCollection(at: Date())
+            default:
+                self.phase = .failed(error.localizedDescription)
+            }
         }
     }
 }

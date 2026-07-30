@@ -301,9 +301,17 @@ struct ControlsView: View {
             Button {
                 workout.end()
             } label: {
-                Label("End", systemImage: "xmark")
+                if workout.phase == .ending {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                        Text("Saving…")
+                    }
+                } else {
+                    Label("End", systemImage: "xmark")
+                }
             }
             .tint(.red)
+            .disabled(workout.phase == .ending)
 
             Button {
                 workout.togglePause()
@@ -315,6 +323,7 @@ struct ControlsView: View {
                 }
             }
             .tint(.yellow)
+            .disabled(workout.phase == .ending)
 
             Button {
                 workout.toggleHomeGuidance()

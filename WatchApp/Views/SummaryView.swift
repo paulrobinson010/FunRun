@@ -1,13 +1,31 @@
 import SwiftUI
 
-/// Post-workout: the headline numbers, then the effort question. Saving
-/// writes the score to HealthKit (as the workout's effort score) and sends
-/// the run to the phone for history and shoe wear.
+/// Post-workout: the headline numbers, then the effort question — asked
+/// per mode (walking and running separately when the outing had both),
+/// defaulting to what you answered last time. Saving writes each score to
+/// its HealthKit workout and sends the run to the phone for history and
+/// shoe wear.
 struct SummaryView: View {
     let workout: WorkoutManager
 
-    @State private var effort = 5
+    @AppStorage("lastRunEffort") private var lastRunEffort = 5
+    @AppStorage("lastWalkEffort") private var lastWalkEffort = 3
+    @State private var runEffort = 5
+    @State private var walkEffort = 3
     @State private var saving = false
+
+    /// Which modes actually got saved as workouts — decides which effort
+    /// questions to ask.
+    private var asksRunning: Bool {
+        // Empty chunks shouldn't happen, but if it does, still ask
+        // something rather than showing a Save button with no question.
+        workout.savedWorkoutChunks.isEmpty
+            || workout.savedWorkoutChunks.contains { $0.mode == .running }
+    }
+
+    private var asksWalking: Bool {
+        workout.savedWorkoutChunks.contains { $0.mode == .walking }
+    }
 
     var body: some View {
         ScrollView {
@@ -42,15 +60,25 @@ struct SummaryView: View {
                 Text("How hard was that?")
                     .font(.headline)
 
-                Picker("Effort", selection: $effort) {
-                    ForEach(1...10, id: \.self) { score in
-                        Text("\(score) · \(Self.effortLabel(score))").tag(score)
+                if asksRunning {
+                    if asksWalking {
+                        Label("Run", systemImage: ActivityMode.running.symbolName)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.green)
                     }
+                    effortPicker("Run effort", selection: $runEffort)
                 }
-                .frame(height: 56)
+                if asksWalking {
+                    if asksRunning {
+                        Label("Walk", systemImage: ActivityMode.walking.symbolName)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.cyan)
+                    }
+                    effortPicker("Walk effort", selection: $walkEffort)
+                }
 
                 Button {
-                    save(effort: effort)
+                    save(skipped: false)
                 } label: {
                     if saving {
                         ProgressView()
@@ -63,7 +91,7 @@ struct SummaryView: View {
                 .disabled(saving)
 
                 Button("Skip effort") {
-                    save(effort: nil)
+                    save(skipped: true)
                 }
                 .font(.footnote)
                 .tint(.secondary)
@@ -71,12 +99,30 @@ struct SummaryView: View {
             }
             .padding(.horizontal, 4)
         }
+        .onAppear {
+            runEffort = lastRunEffort
+            walkEffort = lastWalkEffort
+        }
     }
 
-    private func save(effort: Int?) {
+    private func effortPicker(_ title: String, selection: Binding<Int>) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(1...10, id: \.self) { score in
+                Text("\(score) · \(Self.effortLabel(score))").tag(score)
+            }
+        }
+        .labelsHidden()
+        .frame(height: 52)
+    }
+
+    private func save(skipped: Bool) {
+        let run = (!skipped && asksRunning) ? runEffort : nil
+        let walk = (!skipped && asksWalking) ? walkEffort : nil
+        if let run { lastRunEffort = run }
+        if let walk { lastWalkEffort = walk }
         saving = true
         Task {
-            await workout.finish(effort: effort)
+            await workout.finish(runEffort: run, walkEffort: walk)
             saving = false
         }
     }

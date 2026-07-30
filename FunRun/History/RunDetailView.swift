@@ -20,7 +20,13 @@ struct RunDetailView: View {
                 LabeledContent("Avg pace", value: "\(Format.pace(run.averagePaceSecondsPerKm))/km")
                 LabeledContent("Avg heart rate", value: "\(Format.heartRate(run.averageHeartRate)) bpm")
                 if let effort = run.effort {
-                    LabeledContent("Effort", value: "\(effort)/10 · \(SummaryEffortLabel.text(effort))")
+                    LabeledContent(
+                        run.walkEffort != nil ? "Run effort" : "Effort",
+                        value: "\(effort)/10 · \(SummaryEffortLabel.text(effort))"
+                    )
+                }
+                if let walkEffort = run.walkEffort {
+                    LabeledContent("Walk effort", value: "\(walkEffort)/10 · \(SummaryEffortLabel.text(walkEffort))")
                 }
                 if let shoeName = run.shoeName {
                     LabeledContent("Shoes", value: shoeName)
