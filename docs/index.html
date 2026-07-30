@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gaitway — the watch-first walk/run app</title>
-<meta name="description" content="Gaitway works out whether you're walking or running, pauses when you stop, races your own ghosts, predicts every fork in your route and tracks your trainers' wear. Watch-first, private by design.">
+<meta name="description" content="Gaitway works out whether you're walking or running, pauses when you stop, learns every fork in your route — the segment ahead, the pace to beat, the quickest way home — and tracks your trainers' wear. Watch-first, private by design.">
 <link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
@@ -154,10 +154,11 @@ h2{
 .fork-viz[data-pick="left"] .fork-chip.right{filter:brightness(.45)}
 .fork-viz[data-pick="left"] .fork-chip.left{border-color:var(--cyan);box-shadow:0 0 28px rgba(43,217,255,.35)}
 .fork-viz[data-pick="right"] .bl{opacity:.15}
-.fork-viz[data-pick="right"] .r-left,.fork-viz[data-pick="right"] .ghost{opacity:.06}
+.fork-viz[data-pick="right"] .r-left,.fork-viz[data-pick="right"] .usual{opacity:.06}
 .fork-viz[data-pick="right"] .fork-chip.left{filter:brightness(.45)}
 .fork-viz[data-pick="right"] .fork-chip.right{border-color:var(--magenta);box-shadow:0 0 28px rgba(255,46,158,.35)}
-.fork-viz .ghost{fill:var(--cyan);opacity:.35;filter:drop-shadow(0 0 5px rgba(43,217,255,.8))}
+/* Your usual self over the same ground — the pace the live delta races */
+.fork-viz .usual{fill:var(--cyan);opacity:.35;filter:drop-shadow(0 0 5px rgba(43,217,255,.8))}
 
 /* The page is one run: a route spine fills as you scroll, with your
    position as a runner dot and each section a waypoint on the route. */
@@ -253,7 +254,7 @@ section:nth-of-type(even) h2 .km{
 }
 .card:nth-child(even) em{color:var(--magenta)}
 
-/* Ghost strip */
+/* Privacy strip */
 .strip{
   margin-top:8px;
   background:linear-gradient(100deg, rgba(43,217,255,.08), rgba(255,46,158,.08));
@@ -306,7 +307,8 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
     <h1>Gaitway</h1>
     <p class="tagline">Walk or run — it works out which.</p>
     <p class="sub">A watch-first walk/run app that detects your gait automatically, pauses when you stop,
-    races your own ghosts and knows what every fork in your route will cost you. Your phone stays in your pocket.</p>
+    and knows every fork in your route — what's down each way, the pace to beat on it, and the quickest way home.
+    Your phone stays in your pocket.</p>
     <div class="badges">
       <span class="badge"><b>Apple Watch</b> first</span>
       <span class="badge"><b>iPhone</b> companion</span>
@@ -326,7 +328,7 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
           <animateMotion begin="2s" dur="3.6s" repeatCount="indefinite"
             path="M380 6 V118 C320 183 240 213 130 250"/>
         </circle>
-        <circle class="runner ghost" r="5">
+        <circle class="runner usual" r="5">
           <animateMotion begin="2.55s" dur="3.6s" repeatCount="indefinite"
             path="M380 6 V118 C320 183 240 213 130 250"/>
         </circle>
@@ -335,11 +337,11 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
             path="M380 6 V118 C440 183 520 213 630 250"/>
         </circle>
       </svg>
-      <div class="fork-chip left" data-side="left"><span class="dir">←</span> <b>25 min</b> · 550 cal<span class="sub">70% of your runs go this way</span></div>
-      <div class="fork-chip right" data-side="right"><span class="dir">→</span> <b>45 min</b> · 800 cal<span class="sub">30% · the long loop</span></div>
+      <div class="fork-chip left" data-side="left"><span class="dir">←</span> <b>1.2 km</b> · beat 5'42"<span class="sub">home in 23 min · 70% go this way</span></div>
+      <div class="fork-chip right" data-side="right"><span class="dir">→</span> <b>830 m</b> · beat 6'08"<span class="sub">home in 41 min · the long loop</span></div>
     </div>
-    <p class="fork-caption">At every fork you've run before, Gaitway knows what each way home costs —
-    learned from your own runs, shown on your wrist as you arrive.</p>
+    <p class="fork-caption">100&nbsp;m before every fork you've run before, your wrist shows what's down each way —
+    the segment, the pace to beat on it, and the quickest you could be home.</p>
   </div>
 </header>
 
@@ -369,8 +371,9 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
       <span class="icon">📊</span>
       <h3>Everything on your wrist</h3>
       <p>Current pace, distance, heart rate and elapsed time live on the watch, with a
-      <em>wrist tap and split every kilometre</em>. When you finish, it asks how hard that felt — a 1–10 effort
-      score saved straight onto the workout.</p>
+      <em>wrist tap and split every kilometre</em> — each one scored against your own history over the same
+      ground. When you finish, it asks how hard that felt: separate walking and running effort scores when
+      the outing had both, saved straight onto the workouts.</p>
     </div>
   </div>
 </section>
@@ -382,23 +385,23 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
   <div class="grid">
     <div class="card">
       <span class="icon">🔀</span>
-      <h3>Fork predictions</h3>
-      <p>At every intersection you've faced before: turn left and you're <em>back in 25 minutes and 550 calories</em>;
-      turn right and it's 45 and 800. Averaged from what actually happened on past runs, so later forks are
-      priced in probabilistically.</p>
+      <h3>Forks, priced</h3>
+      <p>100&nbsp;m before every junction you've run before, a pop-up prices each way: the segment's length,
+      your <em>fastest pace on it in the last 28 days</em> — the time to beat — and the quickest you could
+      be home going that way, chained from your best legs.</p>
     </div>
     <div class="card">
       <span class="icon">🏁</span>
-      <h3>Segment deltas</h3>
-      <p>The stretch between two forks is a segment. Finish one and see your time against your
-      <em>last 28 days</em> on that same stretch — green for faster, a medal for your best.</p>
+      <h3>Segments, raced</h3>
+      <p>The stretch between two forks is a segment. While you run it, a live <em>±&nbsp;against your usual
+      self</em> over that exact ground rides on your wrist with the distance still to go — and finishing shows
+      your time against your last 28 days, with a medal for your best.</p>
     </div>
     <div class="card">
-      <span class="icon">👻</span>
-      <h3>Ghost runs</h3>
-      <p>Replay any route from the last year against a ghost of yourself — live ahead/behind at your exact spot,
-      turn arrows when you don't know where you're going, and a way back when you're lost. Favourites automatically
-      race your <em>fastest ever attempt</em>.</p>
+      <span class="icon">🏠</span>
+      <h3>Take me home</h3>
+      <p>One tap mid-run and the watch points the <em>fastest known way back</em> — at forks, the exact turn
+      to take with an ETA chained from your best legs; between them, an arrow towards home.</p>
     </div>
   </div>
 </section>
@@ -416,8 +419,9 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
     <div class="card">
       <span class="icon">🗺️</span>
       <h3>Maps everywhere</h3>
-      <p>Every workout lands in Apple Fitness <em>with its route drawn</em>, and the iPhone app maps
-      every run in your history.</p>
+      <p>Every workout lands in Apple Fitness <em>with its route drawn</em>, the iPhone app maps every run
+      in your history, and the Network tab draws everywhere you run as a joined-up
+      <em>web of forks and segments</em>.</p>
     </div>
     <div class="card">
       <span class="icon">📈</span>
@@ -444,12 +448,12 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
   <div class="rule"></div>
   <div class="shots">
     <figure class="watch">
-      <img src="shots/watch-start.webp" alt="Watch start screen: shoe picker, 45 minute target and Start button" loading="lazy">
-      <figcaption>Pick shoes, set a target, go</figcaption>
+      <img src="shots/watch-start.webp" alt="Watch start screen: shoe picker and Start button" loading="lazy">
+      <figcaption>Pick shoes and go</figcaption>
     </figure>
     <figure class="watch">
-      <img src="shots/watch-forks.webp" alt="Mid-run watch screen with kilometre split, ghost delta and fork prediction" loading="lazy">
-      <figcaption>Splits, ghost, fork predictions</figcaption>
+      <img src="shots/watch-forks.webp" alt="Mid-run watch screen with kilometre split, segment delta and fork choices" loading="lazy">
+      <figcaption>Splits, segments and forks</figcaption>
     </figure>
     <figure class="watch">
       <img src="shots/watch-stats.webp" alt="Watch screen with large pace, distance and heart rate" loading="lazy">

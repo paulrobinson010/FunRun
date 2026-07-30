@@ -34,39 +34,33 @@ your history.
   slice of the heart-rate stream, its distance and energy share, and any
   pauses that fell inside it.
 - **Effort score on finish** — after saving, the watch asks for a 1–10
-  perceived effort. On watchOS 11+ the score is stored as the effort
-  score on every workout in the chain, so the Fitness app rates the
-  session correctly too.
+  perceived effort: separate walking and running questions when the
+  outing saved both kinds of workout, each defaulting to your last
+  answer for that mode. On watchOS 11+ each workout in the chain gets
+  the score for its own mode, so the Fitness app rates the session
+  correctly too.
 - **Trainer wear tracking** — register shoes on the phone, pick a pair on
   the watch when starting, and each synced run adds its distance to that
   pair, with a wear bar and replacement warning.
-- **Intersection predictions** — the watch records each session's GPS
-  track and learns where your routes fork. Reaching a known decision
-  point taps your wrist and shows each choice — left/right/straight
-  relative to your heading — with the expected time until you're back,
-  the predicted session-total calories, and how often you've gone that
-  way. Because each branch's numbers are the average of what *actually*
-  happened on past runs that took it, later forks are automatically
-  priced in probabilistically: if the left turn sometimes becomes a
-  25-minute loop and sometimes a 40-minute one, you see the
-  frequency-weighted expectation, and it sharpens as history grows.
-- **Favourite routes** — swipe any route in the ghost picker to star and
-  name it ("Canal loop"). Favourites sit at the top of the picker, show
-  their name everywhere, and are exempt from the 12-month cleanup, so a
-  named route never ages out. Swipe a favourite to rename or unstar it.
-  Racing a favourite automatically races your **fastest recorded
-  attempt** of that route (matched by distance and track overlap) — a
-  favourite means the route, not one day's run.
+- **Fork pop-ups** — the watch records each session's GPS track and
+  learns where your routes fork (a fork is where passes that shared a
+  corridor genuinely part ways, detected by path divergence — so
+  zigzags, GPS drift and out-and-backs never fake one). About 100 m
+  before a known fork, a wrist tap and pop-up price each choice —
+  left/right/straight relative to your heading — with the length of the
+  segment it leads onto, your fastest pace over it in the last 28 days
+  (the time to beat), the quickest known time home going that way
+  (your best time on each leg of the fastest route, chained), and how
+  often you go that way. Swipe right mid-run for the full forks page.
 - **Fitness app maps** — every saved workout gets its GPS route attached
   (each chained walk/run workout gets its slice), so the Fitness app
   draws the map. The phone's run detail shows the route too, start and
   finish marked.
 - **Kilometre splits** — each km taps the wrist and flashes the split's
-  moving time with its delta to the previous kilometre.
-- **Pace-adjusted predictions** — intersection and next-fork times are
-  scaled by how today compares to your historical average pace, clamped
-  so one bad kilometre doesn't distort the forecast. A slow day honestly
-  predicts a slower finish.
+  moving time with a delta against your own recent history over the
+  same ground: each tick on known ground compares time spent with what
+  your usual local pace predicts, and unknown ground contributes
+  nothing — so a detour never fakes a good or bad kilometre.
 - **Watch complication** — this week's distance on the watch face; tap
   to open the app and start. Requires the `group.com.paulrobinson.FunRun`
   app group (automatic signing creates it on first build).
@@ -77,48 +71,36 @@ your history.
 - **Training load** — the phone's history leads with this week's
   distance and session-RPE load (effort × minutes), compared to your
   4-week average with a gentle warning when the ramp exceeds +40%.
-- **Ghost runs** — pick any route from the last 12 months and replay
-  it against a ghost of yourself. On route, the wrist shows the upcoming
-  turn, whether you're ahead or behind the ghost at this exact spot
-  (green/red seconds), and the distance left — covering both "I don't
-  know where I'm going today" (just follow the arrows) and "I want to do
-  this route" (race it). Drift off the route and it flips to
-  find-my-way-back mode: an arrow to the nearest point of the route and
-  how far away it is, with a haptic when you lose the route and another
-  when you rejoin — for the "I don't know where I am" moments. Matching
-  is monotonic along the ghost's track, so out-and-back routes don't
-  snap you onto the homeward leg while you're still outbound.
-- **Target time** — tell it "I've got 40 minutes" on the start screen
-  and at every fork the branch whose expected finish lands closest to
-  the target is starred and highlighted. The fork predictions become
-  guidance instead of just information.
 - **Take me home** — one tap on the controls screen and the wrist shows
   the first turn of the fastest known way back to your usual finishing
   spot (learned from where runs end), with the ETA; between forks it
   falls back to a plain arrow toward home.
 - **The network map** — a phone tab that draws everything the watch has
-  learned: your run network on a map, broken into coloured segments
-  between forks, with the forks marked. Runs cluster by where they start
-  — home, holidays, wherever — into separate networks with geocoded
-  names, switchable from the globe menu. Before forks exist it shows
-  your raw tracks, so the map is never empty.
+  learned: your run network on a map as a joined-up web — one coloured
+  line per unique physical stretch, pinned to its fork dots — updating
+  as runs land. Runs cluster by where they start — home, holidays,
+  wherever — into separate networks with geocoded names, switchable
+  from the globe menu. Before forks exist it shows your raw tracks, so
+  the map is never empty.
 - **Route backup** — every recorded route mirrors to the phone over
   WatchConnectivity file transfers, where standard iPhone/iCloud backups
   cover it. A watch with empty history (new watch, reset) automatically
   asks the phone to send everything back, favourites and names included.
-- **Segment comparisons** — the stretch between two decision points is a
-  segment. Completing one flashes your time with a signed delta against
-  your last 28 days on that same stretch (green faster, red slower), and
-  a medal when you beat every recent pass. At a fork, each branch also
-  quotes the expected time to the next fork. The 28-day window keeps
-  comparisons honest about current fitness; the decision-point map
-  itself uses all stored history.
+- **Segments, raced live** — the stretch between two forks is a
+  segment. While you run one, the stats and forks pages carry a status
+  row: distance left of the segment (its length inferred from history
+  once ~40 m identifies the branch) and a live ± against your usual
+  self over that exact ground. Completing a segment flashes your time
+  with a signed delta against your last 28 days on the same stretch
+  (green faster, red slower), and a medal when you beat every recent
+  pass. The 28-day window keeps comparisons honest about current
+  fitness; the fork map itself uses all stored history.
 
 ## Project layout
 
 | Folder | Target | What's in it |
 | --- | --- | --- |
-| `WatchApp/` | FunRunWatch (watchOS) | Workout session, auto-detection, auto-pause, live metrics, effort prompt, routes/ghosts |
+| `WatchApp/` | FunRunWatch (watchOS) | Workout session, auto-detection, auto-pause, live metrics, effort prompt, route intelligence |
 | `WatchWidget/` | FunRunWidgetExtension (watchOS) | Watch-face complication (weekly distance) |
 | `FunRun/` | FunRun (iOS) | Shoe registry and wear, run history, maps, training load, watch sync |
 | `Shared/` | both | Models (`Shoe`, `RunSummary`, `ActivityMode`), sync codec, formatters |
@@ -140,15 +122,16 @@ one side is asleep.
   kept as a single workout — a run is never lost.
 - The effort-score HealthKit sample needs watchOS 11; on older versions
   the score still syncs to the phone and shows in history.
-- Intersection detection snaps tracks to an ~18 m grid (`RouteGraph`); a
-  cell is a decision point when past traversals — arriving on a similar
-  heading — leave in two or more direction clusters with at least two
-  runs each. Predictions therefore need a couple of passes over each
-  branch before they appear. Route history lives on the watch — 12
-  months, capped at 400 runs — as one file per run plus a small index
-  (`RouteHistoryStore`), so launch stays light; the route graph is built
-  off the main actor at session start and predictions switch on when
-  it's ready.
+- Fork detection snaps tracks to an ~18 m grid (`RouteGraph`) and finds
+  forks by path divergence: every pair of run paths (each against
+  itself too, which finds loop mouths) is walked with a together/apart
+  state machine, and a fork is the last shared cell before two passes
+  part ways or the first where separate corridors merge. Guards keep
+  zigzags, GPS drift, out-and-back tips and run start/stops from faking
+  one. Route history lives on the watch — 12 months, capped at 400
+  runs — as one file per run plus a small index (`RouteHistoryStore`),
+  so launch stays light; the route graph is built off the main actor at
+  session start and predictions switch on when it's ready.
 - Requires an Apple Watch with GPS; permissions requested on first start:
   Health, Motion & Fitness, Location.
 
@@ -168,8 +151,8 @@ Launch either app with the `-demo` argument (Product → Scheme → Edit
 Scheme → Arguments) and it presents seeded example data: three trainers
 at varied wear, three weeks of runs with map loops and a chained
 walk/run/walk outing on the phone; demo shoes on the watch start screen
-plus a frozen mid-run tableau (fork prediction, ghost delta, km split,
-live stats all at once) as a second page. Strictly in-memory and
+plus frozen mid-run scenes (live stats with the segment row, the fork
+pop-up, the km-split pop-up) as further pages. Strictly in-memory and
 debug-only — nothing is persisted, synced, or written to HealthKit, and
 release builds compile the flag to false.
 
