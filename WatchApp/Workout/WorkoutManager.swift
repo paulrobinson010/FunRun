@@ -62,6 +62,10 @@ final class WorkoutManager: NSObject {
     /// The kilometre split that just completed — a wrist tap plus a brief
     /// banner with its moving time and delta to the previous kilometre.
     private(set) var kmSplit: KmSplit?
+    /// Live vs-history delta for the segment being run right now —
+    /// the push to the fork. Nil until enough known ground has been
+    /// covered since the last fork.
+    private(set) var segmentLiveDeltaSeconds: TimeInterval?
     /// Take-me-home mode: toggled from the controls screen.
     private(set) var homeGuidanceEnabled = false
     private(set) var homeGuidance: HomeGuidance?
@@ -116,20 +120,23 @@ final class WorkoutManager: NSObject {
     let routeStore = RouteHistoryStore()
     private var routePredictor: RoutePredictor?
     private var ghostTracker: GhostTracker?
-    /// Target session length, when the user set one — drives the starred
-    /// branch at forks.
-    private var targetSeconds: TimeInterval?
     /// The last decision point passed, and the wall-clock offset when it
     /// was — start of the segment currently being run.
     private var lastDecisionPassage: (key: RouteGraph.GridKey, wallElapsed: TimeInterval)?
+    /// The fork currently being stood at / passed through, for edge
+    /// detection — distinct from the prediction, which looks ahead.
+    private var lastArrivalNode: RouteGraph.GridKey?
     private let comparisonDisplaySeconds: TimeInterval = 25
 
     // Kilometre split bookkeeping (moving time, from builder elapsed).
     private var nextSplitMeters: Double = 1000
     private var lastSplitElapsed: TimeInterval = 0
     // vs-history accumulator: each active second on known ground adds
-    // (time spent − time your history says that ground takes).
+    // (time spent − time your history says that ground takes). One
+    // accumulator per km split, one per fork-to-fork segment.
     private var splitHistoryDelta: TimeInterval = 0
+    private var segmentHistoryDelta: TimeInterval = 0
+    private var segmentDeltaSamples = 0
     private var lastDeltaTickAt: Date?
     private var lastDeltaDistance: Double = 0
     private var session: HKWorkoutSession?
@@ -175,13 +182,12 @@ final class WorkoutManager: NSObject {
 
     // MARK: - Lifecycle
 
-    func start(with shoe: Shoe?, ghost: RouteRun? = nil, targetMinutes: Int? = nil) async {
+    func start(with shoe: Shoe?, ghost: RouteRun? = nil) async {
         guard phase == .idle || isFailed else { return }
         phase = .starting
         self.shoe = shoe
         ghostTracker = ghost.map { GhostTracker(route: $0) }
         ghostStatus = nil
-        targetSeconds = targetMinutes.map { Double($0) * 60 }
         homeGuidanceEnabled = false
         homeGuidance = nil
         do {
@@ -228,10 +234,14 @@ final class WorkoutManager: NSObject {
             routePrediction = nil
             segmentComparison = nil
             lastDecisionPassage = nil
+            lastArrivalNode = nil
             kmSplit = nil
             nextSplitMeters = 1000
             lastSplitElapsed = 0
             splitHistoryDelta = 0
+            segmentHistoryDelta = 0
+            segmentDeltaSamples = 0
+            segmentLiveDeltaSeconds = nil
             lastDeltaTickAt = nil
             lastDeltaDistance = 0
             // A year of tracks is too much to crunch on the main actor;
@@ -464,7 +474,13 @@ final class WorkoutManager: NSObject {
               let location = routeRecorder.lastLocation,
               let reference = predictor.referenceSpeed(at: location.coordinate),
               reference > 0.4 else { return }
-        splitHistoryDelta += dt - dd / reference
+        let delta = dt - dd / reference
+        splitHistoryDelta += delta
+        segmentHistoryDelta += delta
+        segmentDeltaSamples += 1
+        // Hold the live segment delta back until ~15 ticks of known
+        // ground, so the first noisy readings don't flash a number.
+        segmentLiveDeltaSeconds = segmentDeltaSamples >= 15 ? segmentHistoryDelta : nil
     }
 
     /// Crossing a kilometre boundary taps the wrist and flashes the
@@ -501,8 +517,10 @@ final class WorkoutManager: NSObject {
         ghostStatus = fresh ?? ghostStatus
     }
 
-    /// Look up the current spot in the route graph, driving segment
-    /// timing at each fork passage.
+    /// Two jobs each tick: notice actually *passing* a fork (segment
+    /// timing keys off real arrival, matching how history was carved
+    /// up), and look ~100 m ahead for the next fork so the choices pop
+    /// up with thinking time — with a tap when a new one appears.
     private func updateRoutePrediction() {
         guard let predictor = routePredictor,
               let location = routeRecorder.lastLocation,
@@ -510,20 +528,15 @@ final class WorkoutManager: NSObject {
             routePrediction = nil
             return
         }
-        let wallElapsed = Date().timeIntervalSince(startDate)
-        let currentAverageSpeed = (wallElapsed > 180 && distanceMeters > 400) ? distanceMeters / wallElapsed : nil
-        let fresh = predictor.prediction(
-            at: location,
-            course: course,
-            energySoFar: activeEnergyKilocalories,
-            currentAverageSpeed: currentAverageSpeed,
-            elapsedSeconds: wallElapsed,
-            targetSeconds: targetSeconds
-        )
-        // Fork UI is off the watch for now (field feedback: not useful
-        // yet in this form) — passages still feed segment timing.
+        let arrival = predictor.arrivalNode(at: location.coordinate)
+        if let arrival, arrival != lastArrivalNode {
+            recordDecisionPassage(at: arrival, predictor: predictor)
+        }
+        lastArrivalNode = arrival
+
+        let fresh = predictor.prediction(at: location, course: course)
         if let fresh, fresh.nodeKey != routePrediction?.nodeKey {
-            recordDecisionPassage(at: fresh.nodeKey, predictor: predictor)
+            WKInterfaceDevice.current().play(.directionUp)
         }
         routePrediction = fresh
 
@@ -535,10 +548,15 @@ final class WorkoutManager: NSObject {
 
     /// Arriving at a fork closes the segment begun at the previous one:
     /// compare it against the recent history of the same stretch, then
-    /// start timing the next segment from here.
+    /// start timing the next segment from here (live delta included).
     private func recordDecisionPassage(at key: RouteGraph.GridKey, predictor: RoutePredictor) {
         let wallElapsed = Date().timeIntervalSince(startDate)
-        defer { lastDecisionPassage = (key, wallElapsed) }
+        defer {
+            lastDecisionPassage = (key, wallElapsed)
+            segmentHistoryDelta = 0
+            segmentDeltaSamples = 0
+            segmentLiveDeltaSeconds = nil
+        }
         guard let previous = lastDecisionPassage, previous.key != key else { return }
         let seconds = wallElapsed - previous.wallElapsed
         guard seconds >= SegmentIndex.minimumSegmentSeconds else { return }
@@ -811,10 +829,11 @@ final class WorkoutManager: NSObject {
         routePrediction = nil
         segmentComparison = nil
         lastDecisionPassage = nil
+        lastArrivalNode = nil
         ghostTracker = nil
         ghostStatus = nil
         kmSplit = nil
-        targetSeconds = nil
+        segmentLiveDeltaSeconds = nil
         homeGuidanceEnabled = false
         homeGuidance = nil
         activeEnergyKilocalories = 0

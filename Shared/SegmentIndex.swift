@@ -10,11 +10,22 @@ struct SegmentIndex {
         var to: RouteGraph.GridKey
         var startBearing: Double
         var seconds: TimeInterval
+        var distanceMeters: Double
     }
 
     struct Stats {
         var averageSeconds: TimeInterval
         var bestSeconds: TimeInterval
+        var count: Int
+    }
+
+    /// What a fork can quote about one of its branches: how long the
+    /// stretch to the next fork is, and the fastest it's been covered.
+    struct BranchStats {
+        var medianMeters: Double
+        /// Best pace over the stretch — the time to beat. Nil when no
+        /// traversal was long enough to give an honest pace.
+        var bestSecondsPerKm: Double?
         var count: Int
     }
 
@@ -27,7 +38,7 @@ struct SegmentIndex {
         var index = SegmentIndex()
         guard !graph.decisionCells.isEmpty else { return index }
         for run in runs {
-            var last: (key: RouteGraph.GridKey, elapsed: TimeInterval, bearing: Double?)?
+            var last: (key: RouteGraph.GridKey, elapsed: TimeInterval, distance: Double, bearing: Double?)?
             for rawStep in RouteGraph.cellPath(for: run) {
                 // Forks are coalesced to a canonical cell; snap passes
                 // within ~2 cells of one onto it.
@@ -40,11 +51,12 @@ struct SegmentIndex {
                         index.byFromCell[previous.key, default: []].append(Traversal(
                             to: step.key,
                             startBearing: bearing,
-                            seconds: seconds
+                            seconds: seconds,
+                            distanceMeters: max(0, step.point.distanceMeters - previous.distance)
                         ))
                     }
                 }
-                last = (step.key, step.point.elapsed, step.outgoingBearing)
+                last = (step.key, step.point.elapsed, step.point.distanceMeters, step.outgoingBearing)
             }
         }
         return index
@@ -73,13 +85,28 @@ struct SegmentIndex {
         }
     }
 
-    /// Expected time from this fork to the next one, setting off in this
+    /// All recorded traversals leaving this fork.
+    func traversals(from: RouteGraph.GridKey) -> [Traversal] {
+        byFromCell[from] ?? []
+    }
+
+    /// The stretch behind one branch of a fork: length and the fastest
+    /// pace it's been covered at, from traversals setting off in this
     /// direction.
-    func expectedSeconds(from: RouteGraph.GridKey, startBearing: Double) -> TimeInterval? {
+    func branchStats(from: RouteGraph.GridKey, startBearing: Double) -> BranchStats? {
         let matches = (byFromCell[from] ?? []).filter {
             RouteGraph.angularDistance($0.startBearing, startBearing) <= RouteGraph.clusterWidthDegrees
         }
-        guard matches.count >= RouteGraph.minimumSamplesPerBranch else { return nil }
-        return matches.map(\.seconds).reduce(0, +) / Double(matches.count)
+        guard !matches.isEmpty else { return nil }
+        let meters = matches.map(\.distanceMeters).sorted()
+        let paces = matches.compactMap { traversal -> Double? in
+            guard traversal.distanceMeters > 150 else { return nil }
+            return traversal.seconds / (traversal.distanceMeters / 1000)
+        }
+        return BranchStats(
+            medianMeters: meters[meters.count / 2],
+            bestSecondsPerKm: paces.min(),
+            count: matches.count
+        )
     }
 }

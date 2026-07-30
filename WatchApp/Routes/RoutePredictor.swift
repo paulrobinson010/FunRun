@@ -1,30 +1,29 @@
 import CoreLocation
 import Foundation
 
-/// What the wrist shows at a known intersection: each way you've gone
-/// before, as a direction relative to how you're moving right now, with
-/// the expected outcome of choosing it.
+/// What the wrist shows approaching a known intersection: each way
+/// you've gone before, as a direction relative to how you're moving
+/// right now — the stretch it leads onto, the pace to beat on it, and
+/// the quickest you could be home going that way.
 struct RoutePrediction: Equatable {
     struct Choice: Equatable, Identifiable {
         var id: Int
         var direction: RelativeDirection
-        /// Expected minutes until the session ends, going this way.
-        var finishInMinutes: Int
-        /// Burned so far + expected burn for the rest, going this way.
-        var totalCalories: Int
+        /// Length of the stretch to the next fork, going this way.
+        var distanceMeters: Double?
+        /// Fastest pace over that stretch in the comparison window —
+        /// the time to beat. Nil when it hasn't been run recently.
+        var bestPaceSecondsPerKm: Double?
+        /// Quickest known time home setting off this way: your best
+        /// time on each leg of the fastest route, chained.
+        var homeSeconds: TimeInterval?
         /// How often past runs went this way from here.
         var probabilityPercent: Int
         var sampleCount: Int
-        /// Expected time from here to the next fork, going this way —
-        /// from the comparison window, when it has enough passes.
-        var nextForkSeconds: TimeInterval?
-        /// True on the branch whose expected finish lands closest to the
-        /// session's target time, when one was set.
-        var isRecommended: Bool = false
     }
 
-    /// Which grid cell produced this prediction — used to notice arriving
-    /// at a *new* intersection (for the haptic) vs. lingering at one.
+    /// Which grid cell produced this prediction — used to notice
+    /// approaching a *new* intersection vs. lingering near one.
     var nodeKey: RouteGraph.GridKey
     var choices: [Choice]
 }
@@ -102,12 +101,13 @@ final class RoutePredictor: Sendable {
 
     private let graph: RouteGraph
     private let segments: SegmentIndex
-    /// Overall wall-clock speed across the stored history, for scaling
-    /// predictions to how today is actually going.
-    private let historicalAverageSpeed: Double?
+    /// All-history segment index, for routing and for branch lengths on
+    /// stretches not run inside the comparison window.
+    private let routing: SegmentIndex
     /// Where runs usually end, and the fastest known way there from each
     /// fork: seconds home + which way to set off.
     private let homeCoordinate: CLLocationCoordinate2D?
+    private let homeCells: Set<RouteGraph.GridKey>
     private let homeRoute: [RouteGraph.GridKey: (seconds: TimeInterval, exitBearing: Double)]
 
     /// Median historical speed per cell, from the comparison window —
@@ -150,13 +150,11 @@ final class RoutePredictor: Sendable {
         speedField = field.mapValues { speeds in
             speeds.sorted()[speeds.count / 2]
         }
-        let totalMeters = runs.reduce(0) { $0 + $1.totalDistanceMeters }
-        let totalSeconds = runs.reduce(0) { $0 + $1.totalSeconds }
-        historicalAverageSpeed = (totalMeters > 1000 && totalSeconds > 0) ? totalMeters / totalSeconds : nil
 
         // Home = the cell most runs finish in; routing uses all stored
         // history, not just the comparison window — the way home doesn't
         // go stale the way pace does.
+        routing = SegmentIndex.build(from: runs, graph: graph)
         let endings = runs.compactMap(\.points.last)
         let endCells = Dictionary(grouping: endings) {
             RouteGraph.GridKey(CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude))
@@ -167,10 +165,11 @@ final class RoutePredictor: Sendable {
                 latitude: homeEndings.map(\.latitude).reduce(0, +) / Double(homeEndings.count),
                 longitude: homeEndings.map(\.longitude).reduce(0, +) / Double(homeEndings.count)
             )
-            let routing = SegmentIndex.build(from: runs, graph: graph)
+            homeCells = Set(homeCell.selfAndNeighbours)
             homeRoute = Self.buildHomeRoute(edges: routing.edges, home: homeCell)
         } else {
             homeCoordinate = nil
+            homeCells = []
             homeRoute = [:]
         }
     }
@@ -233,15 +232,6 @@ final class RoutePredictor: Sendable {
         )
     }
 
-    /// A slow day honestly predicts slower finishes: expected times are
-    /// scaled by historical speed ÷ today's, clamped so one bad
-    /// kilometre doesn't distort the whole forecast. Calories stay
-    /// unscaled — they track distance far more than pace.
-    private func paceFactor(currentAverageSpeed: Double?) -> Double {
-        guard let historicalAverageSpeed, let currentAverageSpeed, currentAverageSpeed > 0.3 else { return 1 }
-        return min(1.3, max(0.75, historicalAverageSpeed / currentAverageSpeed))
-    }
-
     /// Comparison for the segment just completed, against the window.
     func segmentComparison(from: RouteGraph.GridKey, to: RouteGraph.GridKey, seconds: TimeInterval) -> SegmentComparison {
         let stats = segments.stats(from: from, to: to)
@@ -254,44 +244,69 @@ final class RoutePredictor: Sendable {
         )
     }
 
-    func prediction(
-        at location: CLLocation,
-        course: Double,
-        energySoFar: Double,
-        currentAverageSpeed: Double? = nil,
-        elapsedSeconds: TimeInterval = 0,
-        targetSeconds: TimeInterval? = nil
-    ) -> RoutePrediction? {
-        let factor = paceFactor(currentAverageSpeed: currentAverageSpeed)
-        let key = RouteGraph.GridKey(location.coordinate)
-        for candidate in key.neighbours(radius: 2) {
-            let branches = graph.branches(at: candidate, course: course)
-            guard branches.count >= 2 else { continue }
-            var choices = branches.enumerated().map { index, branch in
-                RoutePrediction.Choice(
-                    id: index,
-                    direction: RelativeDirection(course: course, branchBearing: branch.bearing),
-                    finishInMinutes: max(1, Int((branch.expectedRemainingSeconds * factor / 60).rounded())),
-                    totalCalories: Int((energySoFar + branch.expectedRemainingEnergy).rounded()),
-                    probabilityPercent: Int((branch.probability * 100).rounded()),
-                    sampleCount: branch.sampleCount,
-                    nextForkSeconds: segments.expectedSeconds(from: candidate, startBearing: branch.bearing).map { $0 * factor }
-                )
-            }
-            // With a target session length set, star the branch whose
-            // expected finish lands closest to it.
-            if let targetSeconds {
-                let recommended = branches.indices.min { a, b in
-                    let missA = abs(elapsedSeconds + branches[a].expectedRemainingSeconds * factor - targetSeconds)
-                    let missB = abs(elapsedSeconds + branches[b].expectedRemainingSeconds * factor - targetSeconds)
-                    return missA < missB
+    /// The fork actually being passed right now — within ~2 cells of the
+    /// current position, no lookahead. Segment timing keys off this, so
+    /// live segments match how history was carved up.
+    func arrivalNode(at coordinate: CLLocationCoordinate2D) -> RouteGraph.GridKey? {
+        RouteGraph.GridKey(coordinate).neighbours(radius: 2).first(where: graph.decisionCells.contains)
+    }
+
+    /// Quickest known time home setting off from this fork in this
+    /// direction: your best recorded time to the next fork that way,
+    /// plus the fastest chain of bests from there.
+    private func quickestHome(from fork: RouteGraph.GridKey, viaBearing: Double) -> TimeInterval? {
+        guard homeCoordinate != nil else { return nil }
+        var best: TimeInterval?
+        for edge in routing.traversals(from: fork)
+        where RouteGraph.angularDistance(edge.startBearing, viaBearing) <= RouteGraph.clusterWidthDegrees {
+            let onward = homeCells.contains(edge.to) ? 0 : homeRoute[edge.to]?.seconds
+            guard let onward else { continue }
+            best = min(best ?? .infinity, edge.seconds + onward)
+        }
+        return best
+    }
+
+    /// The prediction fires from ~100 m out, but only for a fork you're
+    /// actually heading towards — the position is projected forward
+    /// along the course, not just widened.
+    private static let lookaheadMeters: [Double] = [0, 36, 72, 108]
+
+    func prediction(at location: CLLocation, course: Double) -> RoutePrediction? {
+        for ahead in Self.lookaheadMeters {
+            let probe = Self.project(location.coordinate, bearing: course, meters: ahead)
+            for candidate in RouteGraph.GridKey(probe).neighbours(radius: 2) {
+                let branches = graph.branches(at: candidate, course: course)
+                guard branches.count >= 2 else { continue }
+                let choices = branches.enumerated().map { index, branch -> RoutePrediction.Choice in
+                    // Length from the window when the stretch was run
+                    // recently, else from all history; the pace to beat
+                    // only ever from the window.
+                    let recent = segments.branchStats(from: candidate, startBearing: branch.bearing)
+                    let ever = routing.branchStats(from: candidate, startBearing: branch.bearing)
+                    return RoutePrediction.Choice(
+                        id: index,
+                        direction: RelativeDirection(course: course, branchBearing: branch.bearing),
+                        distanceMeters: recent?.medianMeters ?? ever?.medianMeters,
+                        bestPaceSecondsPerKm: recent?.bestSecondsPerKm,
+                        homeSeconds: quickestHome(from: candidate, viaBearing: branch.bearing),
+                        probabilityPercent: Int((branch.probability * 100).rounded()),
+                        sampleCount: branch.sampleCount
+                    )
                 }
-                if let recommended {
-                    choices[recommended].isRecommended = true
-                }
+                return RoutePrediction(nodeKey: candidate, choices: choices)
             }
-            return RoutePrediction(nodeKey: candidate, choices: choices)
         }
         return nil
+    }
+
+    private static func project(_ coordinate: CLLocationCoordinate2D, bearing: Double, meters: Double) -> CLLocationCoordinate2D {
+        guard meters > 0 else { return coordinate }
+        let radians = bearing * .pi / 180
+        let deltaLatitude = cos(radians) * meters / 111_320
+        let deltaLongitude = sin(radians) * meters / (111_320 * cos(coordinate.latitude * .pi / 180))
+        return CLLocationCoordinate2D(
+            latitude: coordinate.latitude + deltaLatitude,
+            longitude: coordinate.longitude + deltaLongitude
+        )
     }
 }

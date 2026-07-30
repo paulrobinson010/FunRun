@@ -2,9 +2,10 @@ import CoreLocation
 import SwiftUI
 
 /// Screenshot scenes for `-demo` launches: the real start screen (with
-/// demo shoes seeded through WatchSync), a mid-run metrics tableau, and
-/// the km-split pop-up — one perfect frame per feature. Nothing here
-/// touches HealthKit, the route store, or sync.
+/// demo shoes seeded through WatchSync), a mid-run metrics tableau, the
+/// upcoming-fork pop-up, and the km-split pop-up — one perfect frame
+/// per feature. Nothing here touches HealthKit, the route store, or
+/// sync.
 struct DemoRootView: View {
     let workout: WorkoutManager
     let sync: WatchSync
@@ -13,9 +14,39 @@ struct DemoRootView: View {
         TabView {
             StartView(workout: workout, sync: sync)
             DemoMetricsScene()
+            DemoForkScene()
             DemoSplitScene()
         }
         .tabViewStyle(.page)
+    }
+}
+
+/// The fork pop-up as it fires ~100 m out: two known ways on, each with
+/// its stretch, the pace to beat, and the quickest way home — plus the
+/// live segment delta pushing you to the fork.
+struct DemoForkScene: View {
+    var body: some View {
+        EventOverlay(
+            overlay: .fork(
+                RoutePrediction(
+                    nodeKey: RouteGraph.GridKey(x: 0, y: 0),
+                    choices: [
+                        RoutePrediction.Choice(
+                            id: 0, direction: .left, distanceMeters: 1_240,
+                            bestPaceSecondsPerKm: 342, homeSeconds: 23 * 60,
+                            probabilityPercent: 70, sampleCount: 14
+                        ),
+                        RoutePrediction.Choice(
+                            id: 1, direction: .right, distanceMeters: 830,
+                            bestPaceSecondsPerKm: 371, homeSeconds: 41 * 60,
+                            probabilityPercent: 30, sampleCount: 6
+                        ),
+                    ]
+                ),
+                segmentDelta: -4
+            ),
+            onTap: {}
+        )
     }
 }
 

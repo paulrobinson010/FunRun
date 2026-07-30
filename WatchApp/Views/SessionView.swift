@@ -4,12 +4,13 @@ import SwiftUI
 /// worth telling a runner is worth telling them in huge type.
 enum SessionOverlay {
     case split(KmSplit)
+    case fork(RoutePrediction, segmentDelta: TimeInterval?)
     case segment(SegmentComparison)
 }
 
-/// The in-workout screens: controls and big live metrics — with
-/// full-screen pop-ups for splits and segment results (auto-dismiss
-/// after a few seconds, tap to dismiss).
+/// The in-workout screens: controls, big live metrics, and a forks page
+/// — with full-screen pop-ups for splits, upcoming forks and segment
+/// results (auto-dismiss after a few seconds, tap to dismiss).
 struct SessionView: View {
     let workout: WorkoutManager
 
@@ -24,17 +25,24 @@ struct SessionView: View {
                     .tag(0)
                 MetricsView(workout: workout)
                     .tag(1)
+                ForksView(workout: workout)
+                    .tag(2)
             }
             .tabViewStyle(.page)
 
             if let overlay {
                 EventOverlay(overlay: overlay) {
+                    if case .fork = overlay {
+                        selectedTab = 2
+                    }
                     dismiss()
                 }
                 .transition(.opacity)
             }
         }
-        // Registration order matters when events coincide: later wins.
+        // Registration order matters when events coincide (a segment
+        // completes just as the next fork appears): later wins, and the
+        // fork is the actionable one.
         .onChange(of: workout.segmentComparison) { _, comparison in
             if let comparison {
                 show(.segment(comparison), for: 5)
@@ -43,6 +51,11 @@ struct SessionView: View {
         .onChange(of: workout.kmSplit) { _, split in
             if let split {
                 show(.split(split), for: 5)
+            }
+        }
+        .onChange(of: workout.routePrediction?.nodeKey) { _, nodeKey in
+            if nodeKey != nil, let prediction = workout.routePrediction {
+                show(.fork(prediction, segmentDelta: workout.segmentLiveDeltaSeconds), for: 8)
             }
         }
     }
@@ -105,6 +118,26 @@ struct EventOverlay: View {
                 } else {
                     Text("±0 vs your usual")
                         .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case .fork(let prediction, let segmentDelta):
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Label("FORK", systemImage: "arrow.triangle.branch")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    if let segmentDelta {
+                        SegmentDeltaChip(deltaSeconds: segmentDelta)
+                    }
+                }
+                ForEach(prediction.choices.prefix(2)) { choice in
+                    ForkChoiceRow(choice: choice)
+                }
+                if prediction.choices.count > 2 {
+                    Text("more on the forks page →")
+                        .font(.body)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -202,6 +235,111 @@ struct MetricsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+// MARK: - Forks page
+
+/// The dedicated page for route intelligence: the fork ahead in full,
+/// readable type — each branch's stretch, the pace to beat on it, and
+/// the quickest way home that way — plus the live segment delta as the
+/// push to the fork.
+struct ForksView: View {
+    let workout: WorkoutManager
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Forks", systemImage: "arrow.triangle.branch")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    if let delta = workout.segmentLiveDeltaSeconds {
+                        SegmentDeltaChip(deltaSeconds: delta)
+                    }
+                }
+
+                if let prediction = workout.routePrediction {
+                    ForEach(prediction.choices) { choice in
+                        ForkChoiceRow(choice: choice)
+                    }
+                } else {
+                    Text("No fork ahead")
+                        .font(.title3.weight(.semibold))
+                    Text("Choices appear ~100 m before a junction you've run before.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let home = workout.homeGuidance {
+                    HomePanel(guidance: home)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 4)
+        }
+    }
+}
+
+/// Live vs-history delta for the segment being run — green means ahead
+/// of your usual self over this exact ground.
+struct SegmentDeltaChip: View {
+    let deltaSeconds: TimeInterval
+
+    var body: some View {
+        Text(Format.signedDuration(deltaSeconds))
+            .font(.system(.body, design: .rounded).weight(.bold))
+            .foregroundStyle(deltaSeconds <= 0 ? .green : .red)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                (deltaSeconds <= 0 ? Color.green : .red).opacity(0.18),
+                in: Capsule()
+            )
+    }
+}
+
+/// One branch, in type you can read at pace: direction, the stretch's
+/// length, the pace to beat on it, and the quickest time home that way.
+struct ForkChoiceRow: View {
+    let choice: RoutePrediction.Choice
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: choice.direction.symbolName)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .foregroundStyle(.orange)
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    if let meters = choice.distanceMeters {
+                        Text(Format.distance(meters))
+                            .font(.system(.title3, design: .rounded).weight(.bold))
+                    }
+                    if let pace = choice.bestPaceSecondsPerKm {
+                        Text("beat \(Format.pace(pace))")
+                            .font(.system(.body, design: .rounded).weight(.semibold))
+                            .foregroundStyle(.yellow)
+                    }
+                }
+                Text(secondLine)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(6)
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var secondLine: String {
+        var parts: [String] = []
+        if let homeSeconds = choice.homeSeconds {
+            parts.append("home \(max(1, Int((homeSeconds / 60).rounded())))m")
+        }
+        parts.append("\(choice.probabilityPercent)%")
+        return parts.joined(separator: " · ")
     }
 }
 
