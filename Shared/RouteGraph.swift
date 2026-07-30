@@ -162,9 +162,9 @@ struct RouteGraph {
     /// cells for several consecutive cells, so momentary GPS drift never
     /// splits a corridor. Self-comparison only pairs cells revisited far
     /// apart along the path — an out-and-back tip or a zigzag never
-    /// pairs with itself, but the mouth of a genuine loop does — and
-    /// cross-comparison ignores boundaries at either path's ends, where
-    /// a run simply starting or stopping is not a junction.
+    /// pairs with itself, but the mouth of a genuine loop does. Path
+    /// ends get only a light guard on cross-comparison, so two returns
+    /// merging shortly before home still fork where they meet.
     private static func divergenceEvents(
         along path: [CellStep],
         against other: [CellStep],
@@ -175,11 +175,23 @@ struct RouteGraph {
         let togetherRadius = 1
         let apartRadius = 3
         let persistence = 4
-        let endpointGuard = 8
+        /// Self-comparison of a closed loop always matches its own start
+        /// to its own end; a wide guard on both keeps the front door
+        /// from becoming a fork.
+        let selfGuard = 8
+        /// Cross-comparison start guard: cold-GPS wobble in the first
+        /// few cells shouldn't fake a split at the doorstep.
+        let startGuard = 4
+        /// Cross-comparison end guard: only the literal final wobble.
+        let endGuard = 2
+        /// A convergence still confirming when the path ends commits
+        /// with this much evidence — the shared tail ran out of road,
+        /// not out of proof.
+        let flushStreak = 2
         let minimumSelfGap = 40
         let selfBoundaryBand = 50
 
-        guard path.count > 2 * endpointGuard, other.count > 2 * endpointGuard else { return [] }
+        guard path.count > 2 * selfGuard, other.count > 2 * selfGuard else { return [] }
 
         func match(at index: Int, radius: Int) -> Int? {
             for cell in path[index].key.neighbours(radius: radius) {
@@ -191,17 +203,16 @@ struct RouteGraph {
         }
 
         func isRealBoundary(_ boundary: (i: Int, j: Int)) -> Bool {
-            // A boundary match barely past the pairing gap is the
-            // pairing gap itself vanishing (an out-and-back tip), not a
-            // loop mouth.
-            if isSelf, abs(boundary.j - boundary.i) <= selfBoundaryBand {
-                return false
+            if isSelf {
+                // A boundary match barely past the pairing gap is the
+                // pairing gap itself vanishing (an out-and-back tip),
+                // not a loop mouth.
+                guard abs(boundary.j - boundary.i) > selfBoundaryBand else { return false }
+                return boundary.i >= selfGuard && boundary.i < path.count - selfGuard
+                    && boundary.j >= selfGuard && boundary.j < other.count - selfGuard
             }
-            // A boundary at either path's ends is a run starting or
-            // stopping — or a loop closing at the front door — not a
-            // junction.
-            guard boundary.j >= endpointGuard, boundary.j < other.count - endpointGuard else { return false }
-            return boundary.i >= endpointGuard && boundary.i < path.count - endpointGuard
+            return boundary.i >= startGuard && boundary.i < path.count - endGuard
+                && boundary.j >= startGuard && boundary.j < other.count - endGuard
         }
 
         var events: [GridKey] = []
@@ -248,6 +259,11 @@ struct RouteGraph {
                     streak = 0
                 }
             }
+        }
+        // Path ended while a convergence was still confirming: the
+        // shared tail ran out of road, not out of evidence.
+        if !together, let boundary = firstShared, streak >= flushStreak, isRealBoundary(boundary) {
+            events.append(path[boundary.i].key)
         }
         return events
     }
