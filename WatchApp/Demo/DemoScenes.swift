@@ -58,13 +58,13 @@ struct DemoMetricsScene: View {
                 HStack {
                     Label(ActivityMode.running.label, systemImage: ActivityMode.running.symbolName)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Gaitway.magenta)
                     Spacer()
                 }
 
                 Text(Format.duration(1_572))
-                    .font(.system(.title, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.yellow)
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                    .foregroundStyle(Gaitway.gradient)
 
                 demoMetricRow(value: Format.pace(334), unit: "/km", icon: "speedometer")
                 demoMetricRow(value: Format.distance(4_210), unit: "", icon: "point.topleft.down.curvedto.point.bottomright.up")
