@@ -24,8 +24,9 @@ struct StartView: View {
                 Image("Logo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 36, height: 36)
+                    .frame(width: 40, height: 40)
                     .clipShape(Circle())
+                    .gaitwayGlow(Gaitway.cyan, radius: 12)
 
                 if case .failed(let message) = workout.phase {
                     Text(message)
@@ -64,9 +65,10 @@ struct StartView: View {
                     } else {
                         Label("Start", systemImage: "play.fill")
                             .font(.headline)
+                            .foregroundStyle(Gaitway.gradient)
                     }
                 }
-                .tint(.green)
+                .tint(Gaitway.cyan)
                 .disabled(workout.phase == .starting)
 
                 if let plan = sync.plannedRoute {
@@ -75,7 +77,7 @@ struct StartView: View {
                         systemImage: "arrow.triangle.turn.up.right.diamond"
                     )
                     .font(.footnote)
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(Gaitway.cyan)
                 }
 
                 Text("Walk or run — it works out which. Stops auto-pause after 5 seconds.")

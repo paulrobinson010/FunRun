@@ -9,22 +9,26 @@ struct HistoryView: View {
             List {
                 if let week = TrainingLoad.thisWeek(from: model.runLog.runs), week.load > 0 {
                     Section("This week") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Label(Format.distance(week.distanceMeters), systemImage: "figure.run")
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(Format.distance(week.distanceMeters))
+                                    .font(.system(.title, design: .rounded).weight(.bold))
+                                    .foregroundStyle(Gaitway.gradient)
                                 Spacer()
                                 Text("Load \(Int(week.load.rounded()))")
-                                    .foregroundStyle(.secondary)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Gaitway.muted)
                             }
                             if let ratio = week.rampRatio {
                                 let percent = Int(((ratio - 1) * 100).rounded())
                                 Text("\(percent >= 0 ? "+" : "")\(percent)% vs 4-week average\(week.isRamping ? " — easy does it" : "")")
                                     .font(.caption)
-                                    .foregroundStyle(week.isRamping ? .orange : .secondary)
+                                    .foregroundStyle(week.isRamping ? Gaitway.magenta : Gaitway.muted)
                             }
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, 4)
                     }
+                    .listRowBackground(Gaitway.panel)
                 }
 
                 if model.runLog.runs.isEmpty {
@@ -40,6 +44,7 @@ struct HistoryView: View {
                     } label: {
                         RunRow(run: run)
                     }
+                    .listRowBackground(Gaitway.panel)
                 }
                 .onDelete { offsets in
                     for run in offsets.map({ model.runLog.runs[$0] }) {
@@ -47,6 +52,7 @@ struct HistoryView: View {
                     }
                 }
             }
+            .gaitwayList()
             .navigationTitle("History")
             .toolbar {
                 if !model.runLog.runs.isEmpty {
@@ -67,11 +73,14 @@ struct RunRow: View {
                     .font(.headline)
                 Spacer()
                 if let effort = run.effort {
+                    // Effort is intensity — magenta's job in this palette.
                     Text("Effort \(effort)")
                         .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.orange.opacity(0.2), in: Capsule())
+                        .foregroundStyle(Gaitway.magenta)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Gaitway.magenta.opacity(0.14), in: Capsule())
+                        .overlay(Capsule().strokeBorder(Gaitway.magenta.opacity(0.4)))
                 }
             }
             HStack(spacing: 12) {
@@ -80,8 +89,8 @@ struct RunRow: View {
                 Label("\(Format.pace(run.averagePaceSecondsPerKm))/km", systemImage: "speedometer")
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Gaitway.muted)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
 }

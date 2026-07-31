@@ -23,6 +23,7 @@ struct ShoeListView: View {
                             NavigationLink(value: shoe.id) {
                                 ShoeRow(shoe: shoe)
                             }
+                            .listRowBackground(Gaitway.panel)
                         }
                     }
                 }
@@ -32,10 +33,12 @@ struct ShoeListView: View {
                             NavigationLink(value: shoe.id) {
                                 ShoeRow(shoe: shoe)
                             }
+                            .listRowBackground(Gaitway.panel)
                         }
                     }
                 }
             }
+            .gaitwayList()
             .navigationTitle("Shoes")
             .navigationDestination(for: UUID.self) { shoeID in
                 if let shoe = model.shoeStore.shoes.first(where: { $0.id == shoeID }) {
@@ -60,7 +63,7 @@ struct ShoeRow: View {
     let shoe: Shoe
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 6) {
                 ShoeColorDot(colorName: shoe.color)
                 Text(shoe.displayName)
@@ -68,24 +71,43 @@ struct ShoeRow: View {
                 Spacer()
                 Text("\(Int(shoe.distanceKm.rounded())) / \(Int(shoe.replaceAfterKm)) km")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Gaitway.muted)
             }
-            ProgressView(value: min(shoe.wearFraction, 1))
-                .tint(wearColor)
+            WearBar(fraction: shoe.wearFraction)
             if shoe.wearFraction >= 1 {
                 Text("Past its replacement distance")
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Gaitway.magenta)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
+}
 
-    private var wearColor: Color {
-        switch shoe.wearFraction {
-        case ..<0.7: .green
-        case ..<0.9: .yellow
-        default: .red
+/// Wear as a neon bar: cyan while there's life left, sweeping to
+/// magenta as the pair runs out — the brand's own two colours doing
+/// the work a traffic light used to.
+struct WearBar: View {
+    let fraction: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            let filled = min(max(fraction, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.08))
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: filled < 0.7 ? [Gaitway.cyan, Gaitway.cyan] : [Gaitway.cyan, Gaitway.magenta],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: max(3, geometry.size.width * filled))
+                    .gaitwayGlow(filled < 0.7 ? Gaitway.cyan : Gaitway.magenta, radius: 6)
+            }
         }
+        .frame(height: 6)
     }
 }

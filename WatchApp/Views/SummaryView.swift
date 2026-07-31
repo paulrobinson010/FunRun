@@ -32,6 +32,7 @@ struct SummaryView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Workout done")
                     .font(.headline)
+                    .foregroundStyle(Gaitway.gradient)
 
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
                     GridRow {
@@ -64,7 +65,7 @@ struct SummaryView: View {
                     if asksWalking {
                         Label("Run", systemImage: ActivityMode.running.symbolName)
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Gaitway.magenta)
                     }
                     effortPicker("Run effort", selection: $runEffort)
                 }
@@ -72,7 +73,7 @@ struct SummaryView: View {
                     if asksRunning {
                         Label("Walk", systemImage: ActivityMode.walking.symbolName)
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.cyan)
+                            .foregroundStyle(Gaitway.cyan)
                     }
                     effortPicker("Walk effort", selection: $walkEffort)
                 }
@@ -87,7 +88,7 @@ struct SummaryView: View {
                             .font(.headline)
                     }
                 }
-                .tint(.green)
+                .tint(Gaitway.cyan)
                 .disabled(saving)
 
                 Button("Skip effort") {

@@ -112,7 +112,7 @@ struct EventOverlay: View {
             VStack(spacing: 2) {
                 Text("KM \(split.kilometre)")
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Gaitway.cyan)
                 Text(Format.duration(split.seconds))
                     .font(.system(size: 44, weight: .bold, design: .rounded))
                 // vs your own recent history over the same ground;
@@ -132,7 +132,7 @@ struct EventOverlay: View {
                 HStack {
                     Label("FORK", systemImage: "arrow.triangle.branch")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Gaitway.magenta)
                     Spacer()
                     if let segmentDelta {
                         SegmentDeltaChip(deltaSeconds: segmentDelta)
@@ -151,7 +151,7 @@ struct EventOverlay: View {
             VStack(spacing: 4) {
                 Label("ROUTE", systemImage: "arrow.triangle.turn.up.right.diamond")
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(Gaitway.cyan)
                 if let direction = turn.direction {
                     Image(systemName: direction.symbolName)
                         .font(.system(size: 52, weight: .bold))
@@ -173,7 +173,7 @@ struct EventOverlay: View {
             VStack(spacing: 2) {
                 Label("SEGMENT", systemImage: "flag.checkered")
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(Gaitway.cyan)
                 Text(Format.duration(comparison.seconds))
                     .font(.system(size: 44, weight: .bold, design: .rounded))
                 if let delta = comparison.deltaSeconds {
@@ -202,7 +202,7 @@ struct MetricsView: View {
                 HStack {
                     Label(workout.mode.label, systemImage: workout.mode.symbolName)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(workout.mode == .running ? .green : .cyan)
+                        .foregroundStyle(workout.mode == .running ? Gaitway.magenta : Gaitway.cyan)
                     Spacer()
                     if workout.isAutoPaused {
                         Text("PAUSED")
@@ -216,8 +216,8 @@ struct MetricsView: View {
                 }
 
                 Text(Format.duration(workout.elapsed))
-                    .font(.system(.title, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.yellow)
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                    .foregroundStyle(Gaitway.gradient)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
@@ -292,12 +292,12 @@ struct ForksView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.cyan)
+                .foregroundStyle(Gaitway.cyan)
 
             HStack(spacing: 6) {
                 Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
                     .font(.body)
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(Gaitway.cyan)
                 if let toGo = workout.planDistanceToGoMeters {
                     Text("\(Format.compactDistance(toGo)) to go")
                         .font(.system(.title3, design: .rounded).weight(.semibold))
@@ -310,13 +310,13 @@ struct ForksView: View {
                 }
             }
             .padding(7)
-            .background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+            .background(Gaitway.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
 
             if let turn = workout.planTurn {
                 HStack(spacing: 10) {
                     Image(systemName: turn.direction?.symbolName ?? "flag.checkered")
                         .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(Gaitway.cyan)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(turn.direction?.label ?? "Route ends")
                             .font(.title3.weight(.bold))
@@ -348,7 +348,7 @@ struct ForksView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Forks", systemImage: "arrow.triangle.branch")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Gaitway.magenta)
 
             if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
                 SegmentStatusRow(
@@ -389,7 +389,7 @@ struct SegmentStatusRow: View {
         HStack(spacing: 6) {
             Image(systemName: "flag.checkered")
                 .font(.body)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Gaitway.magenta)
             if let toGoMeters {
                 Text("\(Format.compactDistance(toGoMeters)) to go")
                     .font(.system(.title3, design: .rounded).weight(.semibold))
@@ -406,7 +406,7 @@ struct SegmentStatusRow: View {
             }
         }
         .padding(7)
-        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+        .background(Gaitway.magenta.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
     }
 }
 
@@ -437,7 +437,7 @@ struct ForkChoiceRow: View {
         HStack(spacing: 8) {
             Image(systemName: choice.direction.symbolName)
                 .font(.system(.title2, design: .rounded).weight(.bold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Gaitway.magenta)
                 .frame(width: 30)
             VStack(alignment: .leading, spacing: 0) {
                 // Field-tested on the 49mm: full-precision distances
@@ -451,7 +451,7 @@ struct ForkChoiceRow: View {
                     if let pace = choice.bestPaceSecondsPerKm {
                         Text("beat \(Format.pace(pace))")
                             .font(.system(.body, design: .rounded).weight(.semibold))
-                            .foregroundStyle(.yellow)
+                            .foregroundStyle(Gaitway.cyan)
                     }
                 }
                 .lineLimit(1)
@@ -490,7 +490,7 @@ struct HomePanel: View {
         HStack(spacing: 6) {
             Image(systemName: "house.fill")
                 .font(.body)
-                .foregroundStyle(.cyan)
+                .foregroundStyle(Gaitway.cyan)
             Image(systemName: guidance.direction.symbolName)
                 .font(.title3.weight(.bold))
             if let minutes = guidance.etaMinutes {
@@ -504,7 +504,7 @@ struct HomePanel: View {
             Spacer()
         }
         .padding(7)
-        .background(.cyan.opacity(0.15), in: RoundedRectangle(cornerRadius: 9))
+        .background(Gaitway.cyan.opacity(0.15), in: RoundedRectangle(cornerRadius: 9))
     }
 }
 

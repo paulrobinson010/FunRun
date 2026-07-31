@@ -14,6 +14,27 @@ struct FunRunApp: App {
 struct ContentView: View {
     let model: AppModel
 
+    init(model: AppModel) {
+        self.model = model
+        // The tab bar and nav bars are UIKit underneath; brand them
+        // once here so every screen sits on the same near-black.
+        let background = UIColor(Gaitway.background)
+        let tab = UITabBarAppearance()
+        tab.configureWithOpaqueBackground()
+        tab.backgroundColor = background
+        UITabBar.appearance().standardAppearance = tab
+        UITabBar.appearance().scrollEdgeAppearance = tab
+
+        let nav = UINavigationBarAppearance()
+        nav.configureWithOpaqueBackground()
+        nav.backgroundColor = background
+        nav.titleTextAttributes = [.foregroundColor: UIColor.white]
+        nav.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        UINavigationBar.appearance().standardAppearance = nav
+        UINavigationBar.appearance().scrollEdgeAppearance = nav
+        UINavigationBar.appearance().compactAppearance = nav
+    }
+
     var body: some View {
         TabView {
             ShoeListView(model: model)
@@ -33,5 +54,8 @@ struct ContentView: View {
                     Label("History", systemImage: "list.bullet.rectangle")
                 }
         }
+        .tint(Gaitway.cyan)
+        // The logo is a dark-world mark; the app lives in that world.
+        .preferredColorScheme(.dark)
     }
 }

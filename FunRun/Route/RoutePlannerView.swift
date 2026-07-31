@@ -15,8 +15,10 @@ struct RoutePlannerView: View {
 
     static let sentPlanKey = "sentPlanSummary"
 
+    /// Neon route palette — cyan and magenta anchor it, the rest are
+    /// picked to stay legible on a dark map.
     private static let palette: [Color] = [
-        .cyan, .pink, .orange, .green, .purple, .yellow, .blue, .mint, .red, .indigo,
+        Gaitway.cyan, Gaitway.magenta, .orange, .mint, .purple, .yellow, .blue, .pink, .green, .indigo,
     ]
 
     var body: some View {
@@ -172,6 +174,7 @@ struct RoutePlannerView: View {
                 }
             }
         }
+        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
     }
 
     private var totalsPill: some View {

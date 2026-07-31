@@ -19,8 +19,10 @@ struct NetworkView: View {
     /// Visible latitude span, for a tap tolerance that scales with zoom.
     @State private var visibleLatitudeDelta: Double = 0.02
 
+    /// Neon route palette — cyan and magenta anchor it, the rest are
+    /// picked to stay legible on a dark map.
     private static let palette: [Color] = [
-        .cyan, .pink, .orange, .green, .purple, .yellow, .blue, .mint, .red, .indigo,
+        Gaitway.cyan, Gaitway.magenta, .orange, .mint, .purple, .yellow, .blue, .pink, .green, .indigo,
     ]
 
     private var selected: RouteNetwork? {
@@ -126,6 +128,7 @@ struct NetworkView: View {
                 }
             }
         }
+        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
                 if let selected = selectedSegment(in: network) {
