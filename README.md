@@ -61,9 +61,8 @@ your history.
   same ground: each tick on known ground compares time spent with what
   your usual local pace predicts, and unknown ground contributes
   nothing — so a detour never fakes a good or bad kilometre.
-- **Watch complication** — this week's distance on the watch face; tap
-  to open the app and start. Requires the `group.com.paulrobinson.FunRun`
-  app group (automatic signing creates it on first build).
+- **Watch complication** — the Gaitway logo on the watch face, one tap
+  from opening the app and starting a run.
 - **Shoe notifications & default pair** — the phone notifies when a pair
   crosses 90% and 100% of its replacement distance, and the watch
   remembers your last-used pair so forgetting to pick doesn't lose wear
@@ -101,7 +100,7 @@ your history.
 | Folder | Target | What's in it |
 | --- | --- | --- |
 | `WatchApp/` | FunRunWatch (watchOS) | Workout session, auto-detection, auto-pause, live metrics, effort prompt, route intelligence |
-| `WatchWidget/` | FunRunWidgetExtension (watchOS) | Watch-face complication (weekly distance) |
+| `WatchWidget/` | FunRunWidgetExtension (watchOS) | Watch-face complication (app launcher) |
 | `FunRun/` | FunRun (iOS) | Shoe registry and wear, run history, maps, training load, watch sync |
 | `Shared/` | both | Models (`Shoe`, `RunSummary`, `ActivityMode`), sync codec, formatters |
 | `Config/` | — | Info.plists and HealthKit entitlements |
