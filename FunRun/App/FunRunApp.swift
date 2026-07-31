@@ -24,6 +24,10 @@ struct ContentView: View {
                 .tabItem {
                     Label("Network", systemImage: "map")
                 }
+            RoutePlannerView(model: model)
+                .tabItem {
+                    Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond")
+                }
             HistoryView(model: model)
                 .tabItem {
                     Label("History", systemImage: "list.bullet.rectangle")

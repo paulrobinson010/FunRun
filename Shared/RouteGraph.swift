@@ -20,7 +20,7 @@ struct RouteGraph {
     /// A branch needs this many past traversals to be trusted.
     static let minimumSamplesPerBranch = 2
 
-    struct GridKey: Hashable {
+    struct GridKey: Hashable, Codable {
         var x: Int
         var y: Int
 

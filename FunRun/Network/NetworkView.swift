@@ -82,6 +82,19 @@ struct NetworkView: View {
                         .frame(width: 12, height: 12)
                 }
             }
+            if let start = network.start {
+                Annotation("", coordinate: start) {
+                    ZStack {
+                        Circle()
+                            .fill(.green)
+                            .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 18, height: 18)
+                }
+            }
         }
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 12) {

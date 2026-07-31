@@ -11,12 +11,16 @@ import WatchConnectivity
 @Observable
 final class WatchSync: NSObject, WCSessionDelegate {
     private(set) var shoes: [Shoe] = []
+    /// The route the phone last sent, mirrored here for the start
+    /// screen's hint; the workout reads the store directly.
+    private(set) var plannedRoute: PlannedRoute?
 
     private var routeStore: RouteHistoryStore?
     private let backedUpKey = "backedUpRouteIDs"
 
     override init() {
         super.init()
+        plannedRoute = RoutePlanStore.load()
         if DemoMode.isActive {
             shoes = DemoData.shoes
             return
@@ -137,6 +141,19 @@ final class WatchSync: NSObject, WCSessionDelegate {
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         Task { @MainActor in
             self.readShoes(from: applicationContext)
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        if let data = userInfo[SyncKey.plannedRoute] as? Data {
+            Task { @MainActor in
+                self.plannedRoute = RoutePlanStore.save(data)
+            }
+        } else if userInfo[SyncKey.clearPlannedRoute] != nil {
+            Task { @MainActor in
+                RoutePlanStore.clear()
+                self.plannedRoute = nil
+            }
         }
     }
 

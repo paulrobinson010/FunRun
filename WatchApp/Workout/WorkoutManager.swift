@@ -15,6 +15,15 @@ struct KmSplit: Equatable {
     var at: Date
 }
 
+/// What the planned route says to do at the fork ahead.
+struct PlanTurn: Equatable {
+    var nodeKey: RouteGraph.GridKey
+    /// Nil at the route's final fork — nothing left to turn onto.
+    var direction: RelativeDirection?
+    /// The leg the turn leads onto.
+    var nextLegMeters: Double?
+}
+
 /// Runs the whole session on the watch: the HealthKit workout (live heart
 /// rate, GPS-calibrated distance), walk/run auto-detection, and auto-pause.
 ///
@@ -67,6 +76,16 @@ final class WorkoutManager: NSObject {
     /// Metres left of the segment being run, when its length is known
     /// from history.
     private(set) var segmentToGoMeters: Double?
+    /// The planned route being followed this session, when one was sent
+    /// from the phone.
+    private(set) var activePlan: PlannedRoute?
+    /// Metres left of the planned route.
+    private(set) var planDistanceToGoMeters: Double?
+    /// Whole-run ± against your usual self over known ground.
+    private(set) var overallDeltaSeconds: TimeInterval?
+    /// The turn the plan calls for at the fork being approached; nil
+    /// between forks.
+    private(set) var planTurn: PlanTurn?
     /// Take-me-home mode: toggled from the controls screen.
     private(set) var homeGuidanceEnabled = false
     private(set) var homeGuidance: HomeGuidance?
@@ -117,12 +136,17 @@ final class WorkoutManager: NSObject {
     private var lastSplitElapsed: TimeInterval = 0
     // vs-history accumulator: each active second on known ground adds
     // (time spent − time your history says that ground takes). One
-    // accumulator per km split, one per fork-to-fork segment.
+    // accumulator per km split, one per fork-to-fork segment, one for
+    // the whole run (the planned route's overall ±).
     private var splitHistoryDelta: TimeInterval = 0
     private var segmentHistoryDelta: TimeInterval = 0
     private var segmentDeltaSamples = 0
+    private var runHistoryDelta: TimeInterval = 0
+    private var runDeltaSamples = 0
     private var lastDeltaTickAt: Date?
     private var lastDeltaDistance: Double = 0
+    /// Index of the planned leg currently being run.
+    private var planLegIndex = 0
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
     private var classifier = ActivityClassifier()
@@ -227,8 +251,15 @@ final class WorkoutManager: NSObject {
             segmentToGoMeters = nil
             segmentPlannedMeters = nil
             segmentStartWorkoutDistance = 0
+            runHistoryDelta = 0
+            runDeltaSamples = 0
+            overallDeltaSeconds = nil
             lastDeltaTickAt = nil
             lastDeltaDistance = 0
+            activePlan = RoutePlanStore.load()
+            planLegIndex = 0
+            planTurn = nil
+            planDistanceToGoMeters = activePlan?.totalMeters
             // A year of tracks is too much to crunch on the main actor;
             // predictions simply stay off until the graph is ready
             // (they need a GPS fix first anyway).
@@ -471,9 +502,12 @@ final class WorkoutManager: NSObject {
         splitHistoryDelta += delta
         segmentHistoryDelta += delta
         segmentDeltaSamples += 1
-        // Hold the live segment delta back until ~15 ticks of known
-        // ground, so the first noisy readings don't flash a number.
+        runHistoryDelta += delta
+        runDeltaSamples += 1
+        // Hold the live deltas back until ~15 ticks of known ground, so
+        // the first noisy readings don't flash a number.
         segmentLiveDeltaSeconds = segmentDeltaSamples >= 15 ? segmentHistoryDelta : nil
+        overallDeltaSeconds = runDeltaSamples >= 15 ? runHistoryDelta : nil
     }
 
     /// Crossing a kilometre boundary taps the wrist and flashes the
@@ -510,19 +544,70 @@ final class WorkoutManager: NSObject {
         let arrival = predictor.arrivalNode(at: location.coordinate)
         if let arrival, arrival != lastArrivalNode {
             recordDecisionPassage(at: arrival, predictor: predictor)
+            advancePlan(passing: arrival)
         }
         lastArrivalNode = arrival
 
         let fresh = predictor.prediction(at: location, course: course)
-        if let fresh, fresh.nodeKey != routePrediction?.nodeKey {
-            WKInterfaceDevice.current().play(.directionUp)
+        if activePlan != nil {
+            // Following a route: no choices, just the planned turn as
+            // the fork approaches.
+            updatePlanTurn(approaching: fresh?.nodeKey, course: course)
+            routePrediction = nil
+        } else {
+            if let fresh, fresh.nodeKey != routePrediction?.nodeKey {
+                WKInterfaceDevice.current().play(.directionUp)
+            }
+            routePrediction = fresh
         }
-        routePrediction = fresh
+        if let plan = activePlan {
+            planDistanceToGoMeters = max(0, plan.totalMeters - distanceMeters)
+        }
 
         if let comparison = segmentComparison,
            Date().timeIntervalSince(comparison.at) > comparisonDisplaySeconds {
             segmentComparison = nil
         }
+    }
+
+    /// Cells within 3 of each other are the same junction — the same
+    /// tolerance the phone's planner uses.
+    private func planMatches(_ a: RouteGraph.GridKey, _ b: RouteGraph.GridKey) -> Bool {
+        max(abs(a.x - b.x), abs(a.y - b.y)) <= 3
+    }
+
+    /// Passing a fork moves the plan forward when it's the current
+    /// leg's end — or a later leg's, if a missed turn got corrected.
+    private func advancePlan(passing node: RouteGraph.GridKey) {
+        guard let plan = activePlan, planLegIndex < plan.legs.count else { return }
+        for index in planLegIndex..<plan.legs.count where planMatches(plan.legs[index].to, node) {
+            planLegIndex = index + 1
+            if planLegIndex == plan.legs.count {
+                WKInterfaceDevice.current().play(.success)
+            }
+            return
+        }
+    }
+
+    /// The upcoming fork (from the same ~100 m lookahead the fork
+    /// pop-up uses) becomes the planned turn: the direction the next
+    /// leg leaves it in.
+    private func updatePlanTurn(approaching nodeKey: RouteGraph.GridKey?, course: Double) {
+        guard let plan = activePlan, planLegIndex < plan.legs.count,
+              let nodeKey, planMatches(plan.legs[planLegIndex].to, nodeKey) else {
+            planTurn = nil
+            return
+        }
+        let nextLeg = planLegIndex + 1 < plan.legs.count ? plan.legs[planLegIndex + 1] : nil
+        let fresh = PlanTurn(
+            nodeKey: nodeKey,
+            direction: nextLeg.map { RelativeDirection(course: course, branchBearing: $0.exitBearing) },
+            nextLegMeters: nextLeg?.distanceMeters
+        )
+        if fresh.nodeKey != planTurn?.nodeKey {
+            WKInterfaceDevice.current().play(.directionUp)
+        }
+        planTurn = fresh
     }
 
     /// Arriving at a fork closes the segment begun at the previous one:
@@ -815,6 +900,10 @@ final class WorkoutManager: NSObject {
         segmentLiveDeltaSeconds = nil
         segmentToGoMeters = nil
         segmentPlannedMeters = nil
+        activePlan = nil
+        planTurn = nil
+        planDistanceToGoMeters = nil
+        overallDeltaSeconds = nil
         homeGuidanceEnabled = false
         homeGuidance = nil
         activeEnergyKilocalories = 0

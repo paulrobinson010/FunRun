@@ -9,6 +9,11 @@ struct RouteNetwork: Identifiable {
     struct SegmentPath: Identifiable {
         let id: Int
         var coordinates: [CLLocationCoordinate2D]
+        /// Grid cells at each end of the geometry — the nodes this
+        /// stretch connects, for the route planner's graph walking.
+        var endA: RouteGraph.GridKey
+        var endB: RouteGraph.GridKey
+        var lengthMeters: Double
     }
 
     let id: Int
@@ -17,6 +22,8 @@ struct RouteNetwork: Identifiable {
     /// Forks: real intersections — three or more directions meeting,
     /// coalesced across GPS drift. Visible from the first run.
     var forks: [CLLocationCoordinate2D]
+    /// Where runs in this network usually start — home, in practice.
+    var start: CLLocationCoordinate2D?
     /// Representative geometry per fork-to-fork stretch. When no forks
     /// exist yet, these are the raw run tracks instead.
     var segments: [SegmentPath]
@@ -160,7 +167,33 @@ enum RouteNetworkBuilder {
 
         let paths: [RouteNetwork.SegmentPath] = accepted.prefix(maximumSegments)
             .enumerated()
-            .map { RouteNetwork.SegmentPath(id: $0.offset, coordinates: $0.element.coordinates) }
+            .map { index, item in
+                var length = 0.0
+                for pair in zip(item.coordinates, item.coordinates.dropFirst()) {
+                    length += CLLocation(latitude: pair.0.latitude, longitude: pair.0.longitude)
+                        .distance(from: CLLocation(latitude: pair.1.latitude, longitude: pair.1.longitude))
+                }
+                return RouteNetwork.SegmentPath(
+                    id: index,
+                    coordinates: item.coordinates,
+                    endA: item.signature.endA,
+                    endB: item.signature.endB,
+                    lengthMeters: length
+                )
+            }
+
+        // Where this network's runs set off from: the busiest starting
+        // cell, averaged — the planner's default start, and a marker on
+        // the map.
+        let startGroups = Dictionary(grouping: runs.compactMap(\.points.first)) {
+            RouteGraph.GridKey(CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude))
+        }
+        let start = startGroups.values.max { $0.count < $1.count }.map { starts in
+            CLLocationCoordinate2D(
+                latitude: starts.map(\.latitude).reduce(0, +) / Double(starts.count),
+                longitude: starts.map(\.longitude).reduce(0, +) / Double(starts.count)
+            )
+        }
 
         let allPoints = runs.flatMap(\.points)
         let latitudes = allPoints.map(\.latitude)
@@ -186,6 +219,7 @@ enum RouteNetworkBuilder {
             center: center,
             runCount: runs.count,
             forks: Array(forkPoints.values),
+            start: start,
             segments: paths,
             region: region
         )

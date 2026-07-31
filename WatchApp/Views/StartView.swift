@@ -69,6 +69,15 @@ struct StartView: View {
                 .tint(.green)
                 .disabled(workout.phase == .starting)
 
+                if let plan = sync.plannedRoute {
+                    Label(
+                        "Route ready · \(Format.compactDistance(plan.totalMeters))",
+                        systemImage: "arrow.triangle.turn.up.right.diamond"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.cyan)
+                }
+
                 Text("Walk or run — it works out which. Stops auto-pause after 5 seconds.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

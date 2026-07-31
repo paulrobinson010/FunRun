@@ -44,6 +44,18 @@ final class PhoneSync: NSObject, WCSessionDelegate {
         try? WCSession.default.updateApplicationContext([SyncKey.shoes: data])
     }
 
+    /// Queue a planned route for the watch — latest one wins there.
+    func send(plannedRoute: PlannedRoute) {
+        guard WCSession.default.activationState == .activated,
+              let data = try? SyncCodec.encoder.encode(plannedRoute) else { return }
+        WCSession.default.transferUserInfo([SyncKey.plannedRoute: data])
+    }
+
+    func clearPlannedRoute() {
+        guard WCSession.default.activationState == .activated else { return }
+        WCSession.default.transferUserInfo([SyncKey.clearPlannedRoute: true])
+    }
+
     // MARK: - WCSessionDelegate
 
     nonisolated func session(

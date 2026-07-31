@@ -5,6 +5,7 @@ import SwiftUI
 enum SessionOverlay {
     case split(KmSplit)
     case fork(RoutePrediction, segmentDelta: TimeInterval?)
+    case turn(PlanTurn)
     case segment(SegmentComparison)
 }
 
@@ -56,6 +57,11 @@ struct SessionView: View {
         .onChange(of: workout.routePrediction?.nodeKey) { _, nodeKey in
             if nodeKey != nil, let prediction = workout.routePrediction {
                 show(.fork(prediction, segmentDelta: workout.segmentLiveDeltaSeconds), for: 8)
+            }
+        }
+        .onChange(of: workout.planTurn?.nodeKey) { _, nodeKey in
+            if nodeKey != nil, let turn = workout.planTurn {
+                show(.turn(turn), for: 8)
             }
         }
     }
@@ -139,6 +145,28 @@ struct EventOverlay: View {
                     Text("more on the forks page →")
                         .font(.body)
                         .foregroundStyle(.secondary)
+                }
+            }
+        case .turn(let turn):
+            VStack(spacing: 4) {
+                Label("ROUTE", systemImage: "arrow.triangle.turn.up.right.diamond")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.cyan)
+                if let direction = turn.direction {
+                    Image(systemName: direction.symbolName)
+                        .font(.system(size: 52, weight: .bold))
+                    Text(direction.label)
+                        .font(.title3.weight(.semibold))
+                    if let meters = turn.nextLegMeters {
+                        Text("\(Format.compactDistance(meters)) segment")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Image(systemName: "flag.checkered")
+                        .font(.system(size: 52, weight: .bold))
+                    Text("Route ends here")
+                        .font(.title3.weight(.semibold))
                 }
             }
         case .segment(let comparison):
@@ -243,46 +271,110 @@ struct MetricsView: View {
 
 // MARK: - Forks page
 
-/// The dedicated page for route intelligence: the fork ahead in full,
-/// readable type — each branch's stretch, the pace to beat on it, and
-/// the quickest way home that way — plus the live segment delta as the
-/// push to the fork.
+/// The dedicated page for route intelligence. Free running: the fork
+/// ahead in full, readable type — each branch's stretch, the pace to
+/// beat on it, and the quickest way home that way. Following a planned
+/// route: only the planned turn, with distance to go and the overall ±.
 struct ForksView: View {
     let workout: WorkoutManager
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Forks", systemImage: "arrow.triangle.branch")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.orange)
+            if workout.activePlan != nil {
+                planContent
+            } else {
+                forksContent
+            }
+        }
+    }
 
-                if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
-                    SegmentStatusRow(
-                        toGoMeters: workout.segmentToGoMeters,
-                        deltaSeconds: workout.segmentLiveDeltaSeconds
-                    )
+    private var planContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.cyan)
+
+            HStack(spacing: 6) {
+                Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                    .font(.body)
+                    .foregroundStyle(.cyan)
+                if let toGo = workout.planDistanceToGoMeters {
+                    Text("\(Format.compactDistance(toGo)) to go")
+                        .font(.system(.title3, design: .rounded).weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
-
-                if let prediction = workout.routePrediction {
-                    ForEach(prediction.choices) { choice in
-                        ForkChoiceRow(choice: choice)
-                    }
-                } else {
-                    Text("No fork ahead")
-                        .font(.title3.weight(.semibold))
-                    Text("Choices appear ~100 m before a junction you've run before.")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let home = workout.homeGuidance {
-                    HomePanel(guidance: home)
+                Spacer()
+                if let delta = workout.overallDeltaSeconds {
+                    SegmentDeltaChip(deltaSeconds: delta)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .padding(.horizontal, 4)
+            .padding(7)
+            .background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+
+            if let turn = workout.planTurn {
+                HStack(spacing: 10) {
+                    Image(systemName: turn.direction?.symbolName ?? "flag.checkered")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(.cyan)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(turn.direction?.label ?? "Route ends")
+                            .font(.title3.weight(.bold))
+                        if let meters = turn.nextLegMeters {
+                            Text("\(Format.compactDistance(meters)) segment")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(6)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+            } else {
+                Text("Follow the route — the turn shows ~100 m before each fork.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let home = workout.homeGuidance {
+                HomePanel(guidance: home)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 4)
+    }
+
+    private var forksContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Forks", systemImage: "arrow.triangle.branch")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.orange)
+
+            if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
+                SegmentStatusRow(
+                    toGoMeters: workout.segmentToGoMeters,
+                    deltaSeconds: workout.segmentLiveDeltaSeconds
+                )
+            }
+
+            if let prediction = workout.routePrediction {
+                ForEach(prediction.choices) { choice in
+                    ForkChoiceRow(choice: choice)
+                }
+            } else {
+                Text("No fork ahead")
+                    .font(.title3.weight(.semibold))
+                Text("Choices appear ~100 m before a junction you've run before.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let home = workout.homeGuidance {
+                HomePanel(guidance: home)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 4)
     }
 }
 

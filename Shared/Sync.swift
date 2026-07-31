@@ -18,6 +18,11 @@ enum SyncKey {
     static let favouriteID = "favouriteID"
     static let favouriteName = "favouriteName"
 
+    /// Phone → watch: a planned route to follow on the next workout
+    /// (encoded `PlannedRoute`), or an instruction to forget it.
+    static let plannedRoute = "plannedRoute"
+    static let clearPlannedRoute = "clearPlannedRoute"
+
     // File-transfer metadata for route backups.
     static let fileKind = "kind"
     static let fileKindRouteRun = "routeRun"
