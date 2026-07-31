@@ -109,32 +109,37 @@ struct AnimatedForkMark: View {
     }
 }
 
-/// The site's section divider: a lit rule that forks at its end.
+/// The site's section divider: a lit rule that forks at its end. Drawn
+/// as one path so the branches always diverge from the stem's end —
+/// rotated capsules pivot about their own edges and converge instead.
+struct ForkRuleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let split = rect.minX + rect.width * 0.66
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addLine(to: CGPoint(x: split, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.move(to: CGPoint(x: split, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return path
+    }
+}
+
 struct ForkRule: View {
-    var width: CGFloat = 56
+    var width: CGFloat = 76
 
     var body: some View {
-        HStack(spacing: 0) {
-            Capsule()
-                .fill(LinearGradient(
-                    colors: [Color.white.opacity(0.35), Gaitway.cyan],
+        ForkRuleShape()
+            .stroke(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.3), Gaitway.cyan, Gaitway.magenta],
                     startPoint: .leading,
                     endPoint: .trailing
-                ))
-                .frame(width: width, height: 2)
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Gaitway.cyan)
-                    .frame(width: 16, height: 2)
-                    .rotationEffect(.degrees(-26), anchor: .leading)
-                Capsule()
-                    .fill(Gaitway.magenta)
-                    .frame(width: 16, height: 2)
-                    .rotationEffect(.degrees(26), anchor: .leading)
-            }
-            .frame(width: 16, height: 16)
-        }
-        .gaitwayGlow(Gaitway.cyan, radius: 6)
+                ),
+                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+            )
+            .frame(width: width, height: 12)
+            .gaitwayGlow(Gaitway.cyan, radius: 6)
     }
 }
 

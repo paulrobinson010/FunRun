@@ -121,6 +121,8 @@ struct RoutePlannerView: View {
                     .padding(.top, 8)
             }
             candidateList
+                .frame(maxHeight: 260)
+            sendBar
         }
     }
 
@@ -248,33 +250,51 @@ struct RoutePlannerView: View {
                 }
             }
 
-            Section {
-                Button {
-                    sendToWatch()
-                } label: {
-                    Label("Send route to watch", systemImage: "applewatch")
-                        .font(.body.weight(.semibold))
-                }
-                .disabled(planner.legs.isEmpty)
-
-                if let sentPlanSummary {
-                    HStack {
-                        Text("On watch: \(sentPlanSummary)")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Clear", role: .destructive) {
-                            model.sync.clearPlannedRoute()
-                            UserDefaults.standard.removeObject(forKey: Self.sentPlanKey)
-                            self.sentPlanSummary = nil
-                        }
-                        .font(.footnote)
-                    }
-                }
-            }
         }
         .listStyle(.plain)
-        .frame(maxHeight: 300)
+        .gaitwayList()
+    }
+
+    /// The primary action lives outside the scrolling choices, pinned
+    /// above the tab bar — scrolling to reach "send" was a trap.
+    private var sendBar: some View {
+        VStack(spacing: 6) {
+            if let sentPlanSummary {
+                HStack {
+                    Label("On watch: \(sentPlanSummary)", systemImage: "applewatch.radiowaves.left.and.right")
+                        .font(.footnote)
+                        .foregroundStyle(Gaitway.muted)
+                    Spacer()
+                    Button("Clear", role: .destructive) {
+                        model.sync.clearPlannedRoute()
+                        UserDefaults.standard.removeObject(forKey: Self.sentPlanKey)
+                        self.sentPlanSummary = nil
+                    }
+                    .font(.footnote)
+                }
+            }
+            Button {
+                sendToWatch()
+            } label: {
+                Label("Send route to watch", systemImage: "applewatch")
+                    .font(.body.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        planner.legs.isEmpty
+                            ? AnyShapeStyle(Color.white.opacity(0.08))
+                            : AnyShapeStyle(Gaitway.gradient),
+                        in: RoundedRectangle(cornerRadius: 14)
+                    )
+                    .foregroundStyle(planner.legs.isEmpty ? AnyShapeStyle(Gaitway.muted) : AnyShapeStyle(Color.black))
+            }
+            .buttonStyle(.plain)
+            .disabled(planner.legs.isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .background(.ultraThinMaterial)
     }
 
     private func returnsToStart(_ candidate: RoutePlanModel.Candidate) -> Bool {
