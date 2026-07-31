@@ -27,6 +27,7 @@ struct StartView: View {
                     .frame(width: 40, height: 40)
                     .clipShape(Circle())
                     .gaitwayGlow(Gaitway.cyan, radius: 12)
+                    .background(GaitwayHalo().frame(width: 40, height: 40))
 
                 if case .failed(let message) = workout.phase {
                     Text(message)

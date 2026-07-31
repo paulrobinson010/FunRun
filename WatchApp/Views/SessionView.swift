@@ -38,7 +38,7 @@ struct SessionView: View {
                     }
                     dismiss()
                 }
-                .transition(.opacity)
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
             }
         }
         // Registration order matters when events coincide (a segment
@@ -67,7 +67,7 @@ struct SessionView: View {
     }
 
     private func show(_ newOverlay: SessionOverlay, for seconds: TimeInterval) {
-        withAnimation(.easeIn(duration: 0.15)) {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.72)) {
             overlay = newOverlay
         }
         dismissTask?.cancel()
@@ -115,6 +115,7 @@ struct EventOverlay: View {
                     .foregroundStyle(Gaitway.cyan)
                 Text(Format.duration(split.seconds))
                     .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .gaitwayShimmer()
                 // vs your own recent history over the same ground;
                 // stretches you've never run before contribute zero.
                 if abs(split.historyDeltaSeconds) >= 1 {
@@ -130,9 +131,12 @@ struct EventOverlay: View {
         case .fork(let prediction, let segmentDelta):
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Label("FORK", systemImage: "arrow.triangle.branch")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Gaitway.magenta)
+                    HStack(spacing: 6) {
+                        AnimatedForkMark()
+                        Text("FORK")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(Gaitway.magenta)
+                    }
                     Spacer()
                     if let segmentDelta {
                         SegmentDeltaChip(deltaSeconds: segmentDelta)
@@ -176,6 +180,7 @@ struct EventOverlay: View {
                     .foregroundStyle(Gaitway.cyan)
                 Text(Format.duration(comparison.seconds))
                     .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .gaitwayShimmer()
                 if let delta = comparison.deltaSeconds {
                     Text(Format.signedDuration(delta))
                         .font(.system(.title2, design: .rounded).weight(.bold))
@@ -220,6 +225,7 @@ struct MetricsView: View {
                     .foregroundStyle(Gaitway.gradient)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    .gaitwayShimmer(period: 4.5)
 
                 metricRow(
                     value: Format.pace(workout.currentPaceSecondsPerKm),
@@ -241,7 +247,8 @@ struct MetricsView: View {
                 if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
                     SegmentStatusRow(
                         toGoMeters: workout.segmentToGoMeters,
-                        deltaSeconds: workout.segmentLiveDeltaSeconds
+                        deltaSeconds: workout.segmentLiveDeltaSeconds,
+                        progress: workout.segmentProgressFraction
                     )
                 }
             }
@@ -294,19 +301,26 @@ struct ForksView: View {
                 .font(.body.weight(.semibold))
                 .foregroundStyle(Gaitway.cyan)
 
-            HStack(spacing: 6) {
-                Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
-                    .font(.body)
-                    .foregroundStyle(Gaitway.cyan)
-                if let toGo = workout.planDistanceToGoMeters {
-                    Text("\(Format.compactDistance(toGo)) to go")
-                        .font(.system(.title3, design: .rounded).weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                        .font(.body)
+                        .foregroundStyle(Gaitway.cyan)
+                    if let toGo = workout.planDistanceToGoMeters {
+                        Text("\(Format.compactDistance(toGo)) to go")
+                            .font(.system(.title3, design: .rounded).weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    Spacer()
+                    if let delta = workout.overallDeltaSeconds {
+                        SegmentDeltaChip(deltaSeconds: delta)
+                    }
                 }
-                Spacer()
-                if let delta = workout.overallDeltaSeconds {
-                    SegmentDeltaChip(deltaSeconds: delta)
+                // The route as a line you travel: filled behind you,
+                // forks as ticks, your position glowing.
+                if let progress = workout.planProgressFraction {
+                    PathTravelTrack(stops: workout.planForkFractions, progress: progress)
                 }
             }
             .padding(7)
@@ -346,14 +360,18 @@ struct ForksView: View {
 
     private var forksContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Forks", systemImage: "arrow.triangle.branch")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Gaitway.magenta)
+            HStack(spacing: 6) {
+                AnimatedForkMark(size: 15)
+                Text("Forks")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Gaitway.magenta)
+            }
 
             if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
                 SegmentStatusRow(
                     toGoMeters: workout.segmentToGoMeters,
-                    deltaSeconds: workout.segmentLiveDeltaSeconds
+                    deltaSeconds: workout.segmentLiveDeltaSeconds,
+                    progress: workout.segmentProgressFraction
                 )
             }
 
@@ -384,25 +402,32 @@ struct ForksView: View {
 struct SegmentStatusRow: View {
     let toGoMeters: Double?
     let deltaSeconds: TimeInterval?
+    /// How far through the segment you are, for the travel track.
+    var progress: Double? = nil
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "flag.checkered")
-                .font(.body)
-                .foregroundStyle(Gaitway.magenta)
-            if let toGoMeters {
-                Text("\(Format.compactDistance(toGoMeters)) to go")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            } else {
-                Text("Segment")
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: "flag.checkered")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Gaitway.magenta)
+                if let toGoMeters {
+                    Text("\(Format.compactDistance(toGoMeters)) to go")
+                        .font(.system(.title3, design: .rounded).weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                } else {
+                    Text("Segment")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let deltaSeconds {
+                    SegmentDeltaChip(deltaSeconds: deltaSeconds)
+                }
             }
-            Spacer()
-            if let deltaSeconds {
-                SegmentDeltaChip(deltaSeconds: deltaSeconds)
+            if let progress {
+                PathTravelTrack(progress: progress)
             }
         }
         .padding(7)

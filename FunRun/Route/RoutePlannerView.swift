@@ -140,36 +140,59 @@ struct RoutePlannerView: View {
                 // The route so far.
                 ForEach(Array(planner.routeCoordinates.enumerated()), id: \.offset) { _, coordinates in
                     MapPolyline(coordinates: coordinates)
+                        .stroke(Gaitway.cyan.opacity(0.3), style: StrokeStyle(lineWidth: 12, lineCap: .round, lineJoin: .round))
+                }
+                ForEach(Array(planner.routeCoordinates.enumerated()), id: \.offset) { _, coordinates in
+                    MapPolyline(coordinates: coordinates)
                         .stroke(.white, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
                 }
                 // The choices, coloured to match the list below.
                 ForEach(candidates) { candidate in
                     MapPolyline(coordinates: candidate.coordinates)
                         .stroke(
-                            Self.palette[candidate.id % Self.palette.count].opacity(0.95),
+                            Self.palette[candidate.id % Self.palette.count].opacity(0.25),
+                            style: StrokeStyle(lineWidth: 10, lineCap: .round, lineJoin: .round)
+                        )
+                }
+                ForEach(candidates) { candidate in
+                    MapPolyline(coordinates: candidate.coordinates)
+                        .stroke(
+                            Self.palette[candidate.id % Self.palette.count],
                             style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
                         )
                 }
                 if let start = network.start {
                     Annotation("", coordinate: start) {
+                        // The halo animates inside the annotation, so
+                        // the map itself never redraws for it.
                         ZStack {
-                            Circle()
-                                .fill(.green)
-                                .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
-                            Image(systemName: "house.fill")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.white)
+                            GaitwayHalo(color: .green)
+                                .frame(width: 26, height: 26)
+                            ZStack {
+                                Circle()
+                                    .fill(.green)
+                                    .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
+                                Image(systemName: "house.fill")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                            .frame(width: 18, height: 18)
                         }
-                        .frame(width: 18, height: 18)
+                        .frame(width: 26, height: 26)
                     }
                 }
                 // The frontier: where the next pick sets off from.
                 if let node = planner.currentNode {
                     Annotation("", coordinate: node.centerCoordinate) {
-                        Circle()
-                            .fill(.white)
-                            .overlay(Circle().strokeBorder(.black.opacity(0.5), lineWidth: 1.5))
-                            .frame(width: 13, height: 13)
+                        ZStack {
+                            GaitwayHalo(color: .white, period: 1.8)
+                                .frame(width: 24, height: 24)
+                            Circle()
+                                .fill(.white)
+                                .overlay(Circle().strokeBorder(.black.opacity(0.5), lineWidth: 1.5))
+                                .frame(width: 13, height: 13)
+                        }
+                        .frame(width: 24, height: 24)
                     }
                 }
             }
@@ -183,9 +206,11 @@ struct RoutePlannerView: View {
             Label("~\(Format.duration(planner.totalSeconds))", systemImage: "clock")
         }
         .font(.subheadline.weight(.semibold))
+        .gaitwayShimmer(period: 4)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(.thinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(Gaitway.cyan.opacity(0.35)))
     }
 
     private var candidateList: some View {

@@ -14,11 +14,13 @@ struct HistoryView: View {
                                 Text(Format.distance(week.distanceMeters))
                                     .font(.system(.title, design: .rounded).weight(.bold))
                                     .foregroundStyle(Gaitway.gradient)
+                                    .gaitwayShimmer()
                                 Spacer()
                                 Text("Load \(Int(week.load.rounded()))")
                                     .font(.subheadline)
                                     .foregroundStyle(Gaitway.muted)
                             }
+                            ForkRule()
                             if let ratio = week.rampRatio {
                                 let percent = Int(((ratio - 1) * 100).rounded())
                                 Text("\(percent >= 0 ? "+" : "")\(percent)% vs 4-week average\(week.isRamping ? " — easy does it" : "")")

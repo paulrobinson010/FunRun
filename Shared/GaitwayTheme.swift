@@ -46,11 +46,11 @@ extension View {
 #if os(iOS)
 extension View {
     /// Brand treatment for a List: hide the system background and sit
-    /// the list on the Gaitway near-black. Pair with
+    /// the list on the Gaitway backdrop. Pair with
     /// `.listRowBackground(Gaitway.panel)` on rows.
     func gaitwayList() -> some View {
         scrollContentBackground(.hidden)
-            .background(Gaitway.background.ignoresSafeArea())
+            .background(GaitwayBackdrop())
     }
 }
 #endif

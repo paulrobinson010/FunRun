@@ -108,6 +108,32 @@ final class WorkoutManager: NSObject {
 
     var isAutoPaused: Bool { phase == .paused(auto: true) }
 
+    /// How far through the current segment you are, when its length is
+    /// known from history — drives the segment travel track.
+    var segmentProgressFraction: Double? {
+        guard let planned = segmentPlannedMeters, planned > 0,
+              let toGo = segmentToGoMeters else { return nil }
+        return min(1, max(0, 1 - toGo / planned))
+    }
+
+    /// How far along the planned route you are.
+    var planProgressFraction: Double? {
+        guard let plan = activePlan, plan.totalMeters > 0,
+              let toGo = planDistanceToGoMeters else { return nil }
+        return min(1, max(0, 1 - toGo / plan.totalMeters))
+    }
+
+    /// Where the forks sit along the planned route, as fractions — the
+    /// ticks on its travel track.
+    var planForkFractions: [Double] {
+        guard let plan = activePlan, plan.totalMeters > 0 else { return [] }
+        var covered = 0.0
+        return plan.legs.dropLast().map { leg in
+            covered += leg.distanceMeters
+            return covered / plan.totalMeters
+        }
+    }
+
     // Stationary below this speed; 5 s of it triggers auto-pause.
     private let stopSpeed: Double = 0.6
     private let autoPauseAfter: TimeInterval = 5

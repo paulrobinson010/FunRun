@@ -36,11 +36,9 @@ struct ContentView: View {
     }
 
     var body: some View {
+        // Ordered by how often they're opened: the network is the app's
+        // face, shoes are a once-a-month errand.
         TabView {
-            ShoeListView(model: model)
-                .tabItem {
-                    Label("Shoes", systemImage: "shoe.2")
-                }
             NetworkView(model: model)
                 .tabItem {
                     Label("Network", systemImage: "map")
@@ -52,6 +50,10 @@ struct ContentView: View {
             HistoryView(model: model)
                 .tabItem {
                     Label("History", systemImage: "list.bullet.rectangle")
+                }
+            ShoeListView(model: model)
+                .tabItem {
+                    Label("Shoes", systemImage: "shoe.2")
                 }
         }
         .tint(Gaitway.cyan)

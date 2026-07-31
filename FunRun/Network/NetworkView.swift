@@ -92,7 +92,14 @@ struct NetworkView: View {
             ForEach(network.segments) { segment in
                 MapPolyline(coordinates: segment.coordinates)
                     .stroke(
-                        Self.palette[segment.id % Self.palette.count].opacity(0.85),
+                        Self.palette[segment.id % Self.palette.count].opacity(0.22),
+                        style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round)
+                    )
+            }
+            ForEach(network.segments) { segment in
+                MapPolyline(coordinates: segment.coordinates)
+                    .stroke(
+                        Self.palette[segment.id % Self.palette.count],
                         style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
                     )
             }
@@ -116,15 +123,22 @@ struct NetworkView: View {
             }
             if let start = network.start {
                 Annotation("", coordinate: start) {
+                    // The halo animates inside the annotation, so the
+                    // map itself never redraws for it.
                     ZStack {
-                        Circle()
-                            .fill(.green)
-                            .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
-                        Image(systemName: "house.fill")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.white)
+                        GaitwayHalo(color: .green)
+                            .frame(width: 26, height: 26)
+                        ZStack {
+                            Circle()
+                                .fill(.green)
+                                .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
+                            Image(systemName: "house.fill")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: 18, height: 18)
                     }
-                    .frame(width: 18, height: 18)
+                    .frame(width: 26, height: 26)
                 }
             }
         }
