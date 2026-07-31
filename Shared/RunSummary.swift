@@ -46,4 +46,19 @@ struct RunSummary: Codable, Identifiable, Hashable {
     func distance(in mode: ActivityMode) -> Double {
         segments.filter { $0.mode == mode }.reduce(0) { $0 + $1.distanceMeters }
     }
+
+    /// Overall pace while in one mode. Segments carry wall-clock spans
+    /// (pauses included), so each mode's share of the moving time is
+    /// taken proportionally — pauses come off both modes evenly. Nil
+    /// when the mode covered too little ground to give an honest pace.
+    func averagePaceSecondsPerKm(in mode: ActivityMode) -> Double? {
+        let modeMeters = distance(in: mode)
+        guard modeMeters > 100, activeSeconds > 0 else { return nil }
+        let wallTotal = segments.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) }
+        let wallMode = segments.filter { $0.mode == mode }
+            .reduce(0) { $0 + $1.end.timeIntervalSince($1.start) }
+        guard wallTotal > 0, wallMode > 0 else { return nil }
+        let movingSeconds = activeSeconds * (wallMode / wallTotal)
+        return movingSeconds / (modeMeters / 1000)
+    }
 }

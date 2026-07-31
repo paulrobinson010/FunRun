@@ -18,6 +18,13 @@ struct RunDetailView: View {
                 LabeledContent("Distance", value: Format.distance(run.distanceMeters))
                 LabeledContent("Moving time", value: Format.duration(run.activeSeconds))
                 LabeledContent("Avg pace", value: "\(Format.pace(run.averagePaceSecondsPerKm))/km")
+                // A mixed outing gets each gait's own overall pace; a
+                // pure walk or run is already the average above.
+                if let runPace = run.averagePaceSecondsPerKm(in: .running),
+                   let walkPace = run.averagePaceSecondsPerKm(in: .walking) {
+                    LabeledContent("Run pace", value: "\(Format.pace(runPace))/km")
+                    LabeledContent("Walk pace", value: "\(Format.pace(walkPace))/km")
+                }
                 LabeledContent("Avg heart rate", value: "\(Format.heartRate(run.averageHeartRate)) bpm")
                 if let effort = run.effort {
                     LabeledContent(
