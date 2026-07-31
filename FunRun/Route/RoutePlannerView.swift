@@ -68,10 +68,46 @@ struct RoutePlannerView: View {
                     }.value
                 }
                 planner.load(runs: runs)
-                if let region = planner.network?.region {
-                    position = .region(region)
-                }
+                updateCamera(animated: false)
             }
+            .onChange(of: planner.legs.count) {
+                updateCamera(animated: true)
+            }
+        }
+    }
+
+    /// Frame the route so far plus every current choice — zooming in
+    /// tight at the start, out as the route grows.
+    private func updateCamera(animated: Bool) {
+        var coordinates = planner.routeCoordinates.flatMap { $0 }
+        coordinates += candidates.flatMap(\.coordinates)
+        if let start = planner.network?.start {
+            coordinates.append(start)
+        }
+        guard !coordinates.isEmpty else {
+            if let region = planner.network?.region {
+                position = .region(region)
+            }
+            return
+        }
+        let latitudes = coordinates.map(\.latitude)
+        let longitudes = coordinates.map(\.longitude)
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: (latitudes.min()! + latitudes.max()!) / 2,
+                longitude: (longitudes.min()! + longitudes.max()!) / 2
+            ),
+            span: MKCoordinateSpan(
+                latitudeDelta: max(0.006, (latitudes.max()! - latitudes.min()!) * 1.4),
+                longitudeDelta: max(0.006, (longitudes.max()! - longitudes.min()!) * 1.4)
+            )
+        )
+        if animated {
+            withAnimation(.easeInOut(duration: 0.6)) {
+                position = .region(region)
+            }
+        } else {
+            position = .region(region)
         }
     }
 
@@ -167,7 +203,11 @@ struct RoutePlannerView: View {
                             Text("\(Format.compactDistance(candidate.segment.lengthMeters)) · ~\(Format.duration(candidate.expectedSeconds))")
                                 .font(.body.weight(.semibold))
                                 .foregroundStyle(.primary)
-                            if let back = candidate.backToStartMeters {
+                            if returnsToStart(candidate) {
+                                Label("finishes back at the start", systemImage: "house.fill")
+                                    .font(.footnote.weight(.medium))
+                                    .foregroundStyle(.green)
+                            } else if let back = candidate.backToStartMeters {
                                 Text("then \(Format.compactDistance(back)) back to start at shortest")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
@@ -207,6 +247,11 @@ struct RoutePlannerView: View {
         }
         .listStyle(.plain)
         .frame(maxHeight: 300)
+    }
+
+    private func returnsToStart(_ candidate: RoutePlanModel.Candidate) -> Bool {
+        guard let start = planner.startNode else { return false }
+        return RoutePlanModel.near(candidate.toNode, start)
     }
 
     private func sendToWatch() {

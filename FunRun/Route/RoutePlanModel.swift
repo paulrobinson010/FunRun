@@ -132,20 +132,10 @@ final class RoutePlanModel {
     /// Typical time over a stretch: fork-to-fork history when it exists
     /// (either direction), overall average pace when it doesn't.
     private func expectedSeconds(from: RouteGraph.GridKey, to: RouteGraph.GridKey, lengthMeters: Double) -> TimeInterval {
-        if let stats = snapStats(from: from, to: to) ?? snapStats(from: to, to: from) {
+        if let stats = segmentStats?.stats(nearFrom: from, to: to) ?? segmentStats?.stats(nearFrom: to, to: from) {
             return stats.averageSeconds
         }
         return lengthMeters / averageSpeed
-    }
-
-    private func snapStats(from: RouteGraph.GridKey, to: RouteGraph.GridKey) -> SegmentIndex.Stats? {
-        guard let segmentStats else { return nil }
-        for candidate in from.neighbours(radius: 2) {
-            if let stats = segmentStats.stats(from: candidate, to: to) {
-                return stats
-            }
-        }
-        return nil
     }
 
     // MARK: - Shortest way back (distance), over the whole network

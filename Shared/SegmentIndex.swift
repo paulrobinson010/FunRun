@@ -90,6 +90,18 @@ struct SegmentIndex {
         byFromCell[from] ?? []
     }
 
+    /// Stats with endpoint tolerance on the `from` side too — for
+    /// callers holding geometry-end cells rather than canonical fork
+    /// cells (the network map, the route planner).
+    func stats(nearFrom from: RouteGraph.GridKey, to: RouteGraph.GridKey) -> Stats? {
+        for candidate in from.neighbours(radius: 2) {
+            if let stats = stats(from: candidate, to: to) {
+                return stats
+            }
+        }
+        return nil
+    }
+
     /// The stretch behind one branch of a fork: length and the fastest
     /// pace it's been covered at, from traversals setting off in this
     /// direction.
