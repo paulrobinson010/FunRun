@@ -12,6 +12,9 @@
 <meta property="og:title" content="Gaitway">
 <meta property="og:description" content="Walk or run — it works out which. Watch-first, private by design.">
 <meta property="og:image" content="https://gaitway.robbo-online.uk/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#020208;
@@ -22,6 +25,8 @@
   --text:#e8e9f2;
   --muted:#8b8da3;
   --line:rgba(255,255,255,.07);
+  --display:"Chakra Petch",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -34,6 +39,29 @@ body{
   line-height:1.6;
   overflow-x:hidden;
 }
+/* Atmosphere: a perspective grid floor bleeding up from the bottom of
+   the hero, plus fine scanlines over everything. Both are pure CSS and
+   sit behind content with pointer-events off. */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+  mix-blend-mode:overlay;
+}
+header::after{
+  content:"";position:absolute;left:-20%;right:-20%;bottom:-40px;height:340px;
+  pointer-events:none;z-index:0;
+  background:
+    repeating-linear-gradient(90deg,rgba(43,217,255,.22) 0 1px,transparent 1px 70px),
+    repeating-linear-gradient(0deg,rgba(255,46,158,.16) 0 1px,transparent 1px 44px);
+  transform:perspective(300px) rotateX(70deg);
+  transform-origin:bottom center;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 55%,transparent);
+  mask-image:linear-gradient(180deg,transparent,#000 55%,transparent);
+  opacity:.85;
+  animation:floor 7s linear infinite;
+}
+@keyframes floor{to{background-position:0 44px,0 44px}}
+header>.wrap,main,footer{position:relative;z-index:1}
 .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
 a{color:var(--cyan);text-decoration:none}
 a:hover{text-decoration:underline}
@@ -48,22 +76,62 @@ header::before{
   content:"";
   position:absolute;inset:0;
   background:
+    radial-gradient(420px 280px at var(--mx,30%) var(--my,20%), rgba(43,217,255,.20), transparent 70%),
     radial-gradient(600px 300px at 30% 0%, rgba(43,217,255,.14), transparent 70%),
     radial-gradient(600px 300px at 70% 10%, rgba(255,46,158,.12), transparent 70%);
   pointer-events:none;
+  transition:background .25s ease-out;
+}
+/* Scroll parallax + fade on the hero contents and the grid floor. */
+header>.wrap{transform:translateY(calc(var(--par,0px) * -.35))}
+header::after{
+  opacity:calc(.85 * var(--fade,1));
+  transform:perspective(340px) rotateX(74deg) translateY(var(--par,0px));
 }
 .logo{
   width:168px;height:168px;border-radius:50%;
   box-shadow:0 0 60px rgba(43,217,255,.35), 0 0 120px rgba(255,46,158,.25);
 }
 h1{
+  position:relative;
   margin-top:26px;
-  font-size:clamp(2.4rem,6vw,3.6rem);
-  letter-spacing:-.02em;
-  background:linear-gradient(100deg,var(--cyan) 20%,var(--magenta) 80%);
+  font-family:var(--display);
+  font-weight:700;
+  font-size:clamp(2.6rem,7vw,4.2rem);
+  letter-spacing:.02em;text-transform:uppercase;
+  background:linear-gradient(100deg,var(--cyan),#9d7bff 45%,var(--magenta));
+  background-size:140% 100%;
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:transparent;
+  animation:sweep 6s ease-in-out infinite;
+  filter:drop-shadow(0 0 24px rgba(43,217,255,.35));
 }
+@keyframes sweep{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+/* Chromatic-aberration glitch: two offset ghosts of the wordmark that
+   flicker occasionally, the classic cyberpunk tell. */
+h1::before,h1::after{
+  content:attr(data-text);
+  position:absolute;left:0;right:0;top:0;
+  -webkit-text-fill-color:initial;
+  pointer-events:none;opacity:0;
+}
+h1::before{color:var(--cyan);animation:glitchA 7s steps(1) infinite}
+h1::after{color:var(--magenta);animation:glitchB 7s steps(1) infinite}
+@keyframes glitchA{
+  0%,92%,100%{opacity:0;transform:none}
+  93%{opacity:.85;transform:translate(-3px,-1px)}
+  95%{opacity:.7;transform:translate(2px,1px)}
+  97%{opacity:0}
+}
+@keyframes glitchB{
+  0%,92%,100%{opacity:0;transform:none}
+  93.5%{opacity:.8;transform:translate(3px,1px)}
+  95.5%{opacity:.65;transform:translate(-2px,-1px)}
+  97.5%{opacity:0}
+}
+h2,h3,.badge b,.fork-chip .dir{font-family:var(--display);letter-spacing:.01em}
+h2{text-transform:uppercase;letter-spacing:.04em}
+.fork-chip b,.fork-chip .sub,.km,.finish-note{font-family:var(--mono)}
 .tagline{
   margin:10px auto 0;max-width:560px;
   font-size:1.2rem;color:var(--text);
@@ -97,8 +165,9 @@ h2{
   content:"";position:absolute;left:100%;top:50%;
   width:22px;height:2px;border-radius:2px;transform-origin:left center;
 }
-.rule::before{background:var(--cyan);transform:translateY(-50%) rotate(-26deg)}
-.rule::after{background:var(--magenta);transform:translateY(-50%) rotate(26deg)}
+.rule{box-shadow:0 0 14px rgba(43,217,255,.45)}
+.rule::before{background:var(--cyan);transform:translateY(-50%) rotate(-26deg);box-shadow:0 0 10px rgba(43,217,255,.6)}
+.rule::after{background:var(--magenta);transform:translateY(-50%) rotate(26deg);box-shadow:0 0 10px rgba(255,46,158,.55)}
 
 /* The hero fork: a route that draws itself, splits at a decision node,
    and shows what each branch costs — the app's signature, animated. */
@@ -106,12 +175,24 @@ h2{
 .fork-viz svg{width:100%;height:auto;display:block;overflow:visible}
 .fork-viz path{fill:none;stroke-width:4;stroke-linecap:round}
 .fork-viz .stem,.fork-viz .bl,.fork-viz .br{stroke-dasharray:1;stroke-dashoffset:1}
-.fork-viz .stem{stroke:#cfd3e6;animation:draw .7s ease .25s forwards}
-.fork-viz .bl{stroke:var(--cyan);filter:drop-shadow(0 0 7px rgba(43,217,255,.55));animation:draw .9s ease .9s forwards}
-.fork-viz .br{stroke:var(--magenta);filter:drop-shadow(0 0 7px rgba(255,46,158,.5));animation:draw .9s ease .9s forwards}
+.fork-viz .stem{stroke:#cfd3e6;stroke-width:5;filter:drop-shadow(0 0 8px rgba(232,233,242,.35));animation:draw .7s ease .25s forwards}
+.fork-viz .bl{stroke:var(--cyan);stroke-width:5;filter:drop-shadow(0 0 12px rgba(43,217,255,.8));animation:draw .9s ease .9s forwards}
+.fork-viz .br{stroke:var(--magenta);stroke-width:5;filter:drop-shadow(0 0 12px rgba(255,46,158,.75));animation:draw .9s ease .9s forwards}
+/* Energy pulses: dashed overlays chasing along each branch, so the
+   route always reads as flowing rather than drawn-and-static. */
+.fork-viz .pulse{
+  fill:none;stroke-width:5;stroke-linecap:round;
+  stroke-dasharray:22 300;opacity:.9;
+  animation:pulse 2.8s linear infinite;
+}
+.fork-viz .pulse.p-stem{stroke:#fff;filter:drop-shadow(0 0 9px #fff)}
+.fork-viz .pulse.p-left{stroke:#eafcff;filter:drop-shadow(0 0 10px var(--cyan));animation-delay:.5s}
+.fork-viz .pulse.p-right{stroke:#ffeaf6;filter:drop-shadow(0 0 10px var(--magenta));animation-delay:1.1s}
+@keyframes pulse{from{stroke-dashoffset:322}to{stroke-dashoffset:0}}
 @keyframes draw{to{stroke-dashoffset:0}}
 .fork-viz .node{
   fill:#0b0b14;stroke:#e8e9f2;stroke-width:3;
+  filter:drop-shadow(0 0 12px rgba(255,255,255,.7));
   transform-box:fill-box;transform-origin:center;
   animation:pop .45s var(--ease-pop,ease) .8s both;
 }
@@ -124,18 +205,30 @@ h2{
 @keyframes halo{0%{transform:scale(.6);opacity:.8}70%{transform:scale(2.2);opacity:0}100%{opacity:0}}
 .fork-viz .runner{fill:#fff;filter:drop-shadow(0 0 6px rgba(255,255,255,.9));opacity:.95}
 .fork-chip{
-  position:absolute;bottom:-14px;
+  position:absolute;bottom:-14px;overflow:hidden;
   background:rgba(11,11,20,.92);
   border:1px solid rgba(43,217,255,.45);
   border-radius:12px;padding:8px 13px;
   font-size:.84rem;line-height:1.4;white-space:nowrap;
+  box-shadow:0 0 24px rgba(43,217,255,.18), inset 0 0 18px rgba(43,217,255,.06);
   opacity:0;animation:chip .5s ease 1.9s forwards;
 }
+/* A sheen sweeping across each chip — HUD readouts, not stickers. */
+.fork-chip::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.16) 50%,transparent 65%);
+  transform:translateX(-120%);
+  animation:sheen 4.5s ease-in-out 2.6s infinite;
+}
+@keyframes sheen{0%{transform:translateX(-120%)}45%,100%{transform:translateX(120%)}}
 .fork-chip b{font-weight:650}
 .fork-chip .dir{font-weight:700;color:var(--cyan)}
 .fork-chip .sub{display:block;color:var(--muted);font-size:.72rem}
 .fork-chip.left{left:0}
-.fork-chip.right{right:0;border-color:rgba(255,46,158,.45);animation-delay:2.15s}
+.fork-chip.right{
+  right:0;border-color:rgba(255,46,158,.45);animation-delay:2.15s;
+  box-shadow:0 0 24px rgba(255,46,158,.18), inset 0 0 18px rgba(255,46,158,.06);
+}
 .fork-chip.right .dir{color:var(--magenta)}
 @keyframes chip{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .fork-caption{margin:26px auto 0;max-width:520px;text-align:center;color:var(--muted);font-size:.92rem}
@@ -174,10 +267,16 @@ h2{
     background:linear-gradient(180deg,var(--cyan),var(--magenta));
     box-shadow:0 0 14px rgba(43,217,255,.35);
   }
+  .spine .fill{box-shadow:0 0 16px rgba(43,217,255,.5)}
   .spine .dot{
     position:absolute;left:50%;top:0;transform:translate(-50%,-50%);
     width:11px;height:11px;border-radius:50%;
     background:#fff;box-shadow:0 0 12px rgba(255,255,255,.9);
+    animation:dotPulse 2s ease-in-out infinite;
+  }
+  @keyframes dotPulse{
+    0%,100%{box-shadow:0 0 12px rgba(255,255,255,.9)}
+    50%{box-shadow:0 0 22px rgba(43,217,255,1),0 0 34px rgba(255,46,158,.6)}
   }
   section h2{position:relative}
   section h2::before{
@@ -226,7 +325,12 @@ section:nth-of-type(even) h2 .km{
   .fork-viz .halo{display:none}
   .fork-viz .runner{display:none}
   .fork-chip{animation:none;opacity:1}
+  .fork-chip::after,.fork-viz .pulse{display:none}
+  h1{animation:none}
+  h1::before,h1::after{display:none}
+  header::after{animation:none}
   .rv{opacity:1;transform:none;transition:none}
+  .card:hover{transform:none}
 }
 
 /* Feature grid */
@@ -240,8 +344,20 @@ section:nth-of-type(even) h2 .km{
   border-radius:16px;padding:22px;
   transition:transform .15s ease, border-color .15s ease;
 }
-.card:hover{transform:translateY(-2px);border-color:rgba(43,217,255,.35)}
-.card:nth-child(even):hover{border-color:rgba(255,46,158,.35)}
+.card{position:relative;overflow:hidden}
+/* A neon edge that ignites on hover — the card equivalent of the
+   app's glowing accents. */
+.card::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  padding:1px;
+  background:linear-gradient(135deg,var(--cyan),transparent 40%,transparent 60%,var(--magenta));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  opacity:0;transition:opacity .35s ease;
+}
+.card:hover{transform:translateY(-4px);border-color:transparent}
+.card:hover::before{opacity:.9}
+.card:hover{box-shadow:0 14px 50px rgba(43,217,255,.14),0 14px 50px rgba(255,46,158,.1)}
 .card .icon{
   font-size:1.5rem;line-height:1;
   margin-bottom:12px;display:block;
@@ -257,7 +373,9 @@ section:nth-of-type(even) h2 .km{
 /* Privacy strip */
 .strip{
   margin-top:8px;
-  background:linear-gradient(100deg, rgba(43,217,255,.08), rgba(255,46,158,.08));
+  background:linear-gradient(100deg, rgba(43,217,255,.08), rgba(255,46,158,.08), rgba(43,217,255,.08));
+  background-size:220% 100%;
+  animation:wash 12s ease-in-out infinite;
   border:1px solid var(--line);
   border-radius:16px;padding:26px;
   display:flex;gap:20px;align-items:center;flex-wrap:wrap;
@@ -265,6 +383,7 @@ section:nth-of-type(even) h2 .km{
 .strip .big{font-size:2rem}
 .strip p{color:var(--muted);max-width:640px}
 .strip b{color:var(--text)}
+@keyframes wash{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
 
 /* Screenshot gallery */
 .shots{
@@ -281,9 +400,10 @@ section:nth-of-type(even) h2 .km{
   background:var(--panel);
   transition:transform .15s ease, box-shadow .15s ease;
 }
+.shots img{box-shadow:0 0 0 1px rgba(43,217,255,.12), 0 8px 30px rgba(0,0,0,.5)}
 .shots figure:hover img{
-  transform:translateY(-4px);
-  box-shadow:0 10px 40px rgba(43,217,255,.18), 0 10px 40px rgba(255,46,158,.12);
+  transform:translateY(-6px) scale(1.02);
+  box-shadow:0 0 0 1px rgba(43,217,255,.5), 0 18px 60px rgba(43,217,255,.25), 0 18px 60px rgba(255,46,158,.16);
 }
 .shots .phone img{height:450px}
 .shots .watch img{height:230px;border-radius:26px}
@@ -304,7 +424,7 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
 <header>
   <div class="wrap">
     <img class="logo" src="applogo.png" alt="Gaitway logo — a neon runner in a cyan and magenta circle">
-    <h1>Gaitway</h1>
+    <h1 data-text="Gaitway">Gaitway</h1>
     <p class="tagline">Walk or run — it works out which.</p>
     <p class="sub">A watch-first walk/run app that detects your gait automatically, pauses when you stop,
     and knows every fork in your route — what's down each way, the pace to beat on it, and the quickest way home.
@@ -320,6 +440,9 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
         <path class="stem" pathLength="1" d="M380 6 V118"/>
         <path class="bl" pathLength="1" d="M380 118 C320 183 240 213 130 250"/>
         <path class="br" pathLength="1" d="M380 118 C440 183 520 213 630 250"/>
+        <path class="pulse p-stem" pathLength="300" d="M380 6 V118"/>
+        <path class="pulse p-left" pathLength="300" d="M380 118 C320 183 240 213 130 250"/>
+        <path class="pulse p-right" pathLength="300" d="M380 118 C440 183 520 213 630 250"/>
         <path class="hit" data-side="left" d="M380 118 C320 183 240 213 130 250"/>
         <path class="hit" data-side="right" d="M380 118 C440 183 520 213 630 250"/>
         <circle class="halo" cx="380" cy="118" r="10"/>
@@ -520,6 +643,39 @@ footer .foot-logo{width:44px;height:44px;border-radius:50%;opacity:.9;margin-bot
       });
     });
   });
+})();
+
+/* Cursor-reactive hero: the ambient glow follows the pointer, so the
+   header feels alive under the hand. Pointer-fine devices only. */
+(function () {
+  if (!window.matchMedia("(pointer:fine)").matches) return;
+  if (window.matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  var header = document.querySelector("header");
+  if (!header) return;
+  header.addEventListener("pointermove", function (event) {
+    var rect = header.getBoundingClientRect();
+    header.style.setProperty("--mx", ((event.clientX - rect.left) / rect.width * 100) + "%");
+    header.style.setProperty("--my", ((event.clientY - rect.top) / rect.height * 100) + "%");
+  });
+})();
+
+/* Parallax: the grid floor and hero drift as you scroll away from the
+   top, giving the page depth without hijacking the scroll. */
+(function () {
+  if (window.matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  var header = document.querySelector("header");
+  if (!header) return;
+  var ticking = false;
+  function update() {
+    ticking = false;
+    var y = Math.min(window.scrollY, 700);
+    header.style.setProperty("--par", (y * 0.25) + "px");
+    header.style.setProperty("--fade", String(Math.max(0, 1 - y / 620)));
+  }
+  window.addEventListener("scroll", function () {
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  }, { passive: true });
+  update();
 })();
 
 /* Route spine: fill tracks scroll position, dot = you */
