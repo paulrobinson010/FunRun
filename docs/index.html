@@ -232,8 +232,25 @@ h2{
 .fork-chip.right .dir{color:var(--magenta)}
 @keyframes chip{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .fork-caption{margin:26px auto 0;max-width:520px;text-align:center;color:var(--muted);font-size:.92rem}
-@media (max-width:560px){
-  .fork-chip{font-size:.7rem;padding:6px 9px;bottom:-10px}
+/* Phones: the chips can't sit either side of a 390px-wide fork without
+   colliding (and pushing the page sideways), so they drop into normal
+   flow underneath it and read as a list. */
+@media (max-width:640px){
+  .fork-viz{margin-top:28px}
+  .fork-chip{
+    position:static;
+    display:block;
+    width:100%;
+    margin-top:10px;
+    white-space:normal;
+    text-align:left;
+    font-size:.8rem;padding:9px 12px;
+  }
+  .fork-chip.right{animation-delay:2.05s}
+  .fork-caption{margin-top:18px}
+  /* The grid floor needs less room to breathe on a phone. */
+  header{padding:56px 0 24px}
+  section{padding:34px 0}
 }
 
 /* Pick a branch: hover or tap commits to it, the other way dims.
