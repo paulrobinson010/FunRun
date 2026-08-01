@@ -7,6 +7,7 @@ struct StartView: View {
     let sync: WatchSync
 
     @State private var selectedShoeID: UUID?
+    @State private var clearingRoute = false
     /// Remembers the last pair used, so forgetting to pick doesn't lose
     /// wear tracking.
     @AppStorage("lastShoeID") private var lastShoeID: String = ""
@@ -72,13 +73,33 @@ struct StartView: View {
                 .tint(Gaitway.cyan)
                 .disabled(workout.phase == .starting)
 
+                // Tap to drop a route you no longer want to run; the
+                // phone can always send another.
                 if let plan = sync.plannedRoute {
-                    Label(
-                        "Route ready · \(Format.compactDistance(plan.totalMeters))",
-                        systemImage: "arrow.triangle.turn.up.right.diamond"
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(Gaitway.cyan)
+                    Button {
+                        clearingRoute = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.triangle.turn.up.right.diamond")
+                            Text("Route · \(Format.compactDistance(plan.totalMeters))")
+                                .lineLimit(1)
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Gaitway.muted)
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(Gaitway.cyan)
+                    }
+                    .buttonStyle(.plain)
+                    .confirmationDialog(
+                        "Clear the planned route?",
+                        isPresented: $clearingRoute,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Clear route", role: .destructive) {
+                            sync.clearPlannedRoute()
+                        }
+                        Button("Keep it", role: .cancel) {}
+                    }
                 }
 
                 Text("Walk or run — it works out which. Stops auto-pause after 5 seconds.")

@@ -17,11 +17,26 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     /// Supplied by WorkoutManager so each point carries the workout state.
     var metrics: (() -> (distance: Double, energy: Double))?
 
+    /// How many fixes were kept and how many the accuracy gate turned
+    /// away — carried on the finished run so a short track can be told
+    /// apart from a track that never got fixes at all.
+    private(set) var acceptedFixes = 0
+    private(set) var rejectedFixes = 0
+
     private let manager = CLLocationManager()
     private var sessionStart = Date()
     private var isRecording = false
     private let minimumSpacingMeters: Double = 8
+    /// Normal gate. A walk with the wrist down gets noticeably coarser
+    /// fixes than a run, so holding out for 35 m can starve the track
+    /// while HealthKit — which fuses the pedometer — keeps counting
+    /// distance quite happily.
     private let accuracyLimitMeters: Double = 35
+    /// After this long with nothing accepted, take the best on offer up
+    /// to `relaxedAccuracyMeters`: a coarse fix beats a gap in the line.
+    private let starvedAfterSeconds: TimeInterval = 25
+    private let relaxedAccuracyMeters: Double = 100
+    private var lastAcceptedAt: Date?
 
     override init() {
         super.init()
@@ -49,6 +64,9 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
         points = []
         rawLocations = []
         lastLocation = nil
+        acceptedFixes = 0
+        rejectedFixes = 0
+        lastAcceptedAt = nil
         isRecording = true
         requestPermissionIfNeeded()
         // Only opt into background updates once actually authorised —
@@ -96,7 +114,14 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     }
 
     private func ingest(_ location: CLLocation) {
-        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= accuracyLimitMeters else { return }
+        let starved = lastAcceptedAt.map { Date().timeIntervalSince($0) > starvedAfterSeconds } ?? false
+        let limit = starved ? relaxedAccuracyMeters : accuracyLimitMeters
+        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= limit else {
+            rejectedFixes += 1
+            return
+        }
+        acceptedFixes += 1
+        lastAcceptedAt = Date()
         lastLocation = location
         rawLocations.append(location)
         if let last = points.last {

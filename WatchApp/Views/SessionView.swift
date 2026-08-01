@@ -567,6 +567,15 @@ struct ControlsView: View {
             .tint(.yellow)
             .disabled(workout.phase == .ending)
 
+            if workout.activePlan != nil {
+                Button {
+                    workout.stopFollowingPlan()
+                } label: {
+                    Label("Stop route", systemImage: "xmark.diamond")
+                }
+                .tint(Gaitway.cyan)
+            }
+
             Button {
                 workout.toggleHomeGuidance()
             } label: {

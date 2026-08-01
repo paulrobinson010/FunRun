@@ -31,6 +31,12 @@ struct RunSummary: Codable, Identifiable, Hashable {
     var savedWorkouts: [RunSegment]? = nil
     /// The route, thinned for drawing on the phone's map (~20 m spacing).
     var track: [TrackPoint]? = nil
+    /// GPS fixes kept and turned away by the accuracy gate. Diagnostic:
+    /// a short map with a healthy accepted count means the thinning or
+    /// the transfer lost it; a low accepted count means the watch never
+    /// got the fixes.
+    var gpsFixesAccepted: Int? = nil
+    var gpsFixesRejected: Int? = nil
     /// Walking effort 1–10, only when the outing had both walking and
     /// running and they were scored separately — `effort` is then the
     /// running score.

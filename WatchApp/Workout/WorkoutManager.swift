@@ -90,6 +90,17 @@ final class WorkoutManager: NSObject {
     private(set) var homeGuidanceEnabled = false
     private(set) var homeGuidance: HomeGuidance?
 
+    /// Abandon the planned route for this session — the plan stays on
+    /// the watch for another day. The forks page reverts to free
+    /// running, choices and all.
+    func stopFollowingPlan() {
+        activePlan = nil
+        planTurn = nil
+        planDistanceToGoMeters = nil
+        planLegIndex = 0
+        WKInterfaceDevice.current().play(.click)
+    }
+
     func toggleHomeGuidance() {
         homeGuidanceEnabled.toggle()
         if !homeGuidanceEnabled {
@@ -355,6 +366,8 @@ final class WorkoutManager: NSObject {
             autoPauseCount: autoPauseCount,
             savedWorkouts: savedWorkoutChunks,
             track: mapTrack(),
+            gpsFixesAccepted: routeRecorder.acceptedFixes,
+            gpsFixesRejected: routeRecorder.rejectedFixes,
             walkEffort: runEffort != nil ? walkEffort : nil
         )
         onFinished?(summary)
@@ -798,16 +811,32 @@ final class WorkoutManager: NSObject {
 
     /// The recorded track thinned to ~20 m spacing — light enough to ride
     /// along on the phone sync, detailed enough to draw the run's map.
+    /// Cap on the points that ride to the phone. WatchConnectivity
+    /// rejects an over-sized user-info payload outright, which would
+    /// lose the whole run rather than just its map — and a long outing
+    /// at fixed 20 m spacing sails past that limit (11 km ≈ 550 points
+    /// ≈ 62 KB, against a ~65 KB ceiling). Long runs thin harder.
+    private static let maximumMapTrackPoints = 300
+
     private func mapTrack() -> [TrackPoint]? {
         let points = routeRecorder.points
-        guard points.count >= 2 else { return nil }
+        guard points.count >= 2, let first = points.first, let last = points.last else { return nil }
+        let span = last.distanceMeters - first.distanceMeters
+        let spacing = max(20, span / Double(Self.maximumMapTrackPoints))
         var thinned: [TrackPoint] = []
         var lastKeptDistance = -Double.greatestFiniteMagnitude
-        for point in points where point.distanceMeters - lastKeptDistance >= 20 {
+        for point in points where point.distanceMeters - lastKeptDistance >= spacing {
             thinned.append(point)
             lastKeptDistance = point.distanceMeters
         }
-        if let last = points.last, thinned.last?.distanceMeters != last.distanceMeters {
+        // Distance can stall (a stationary stretch, or a workout whose
+        // distance never advanced), leaving spacing unable to thin —
+        // fall back to taking every nth point.
+        if thinned.count > Self.maximumMapTrackPoints {
+            let stride = Int((Double(thinned.count) / Double(Self.maximumMapTrackPoints)).rounded(.up))
+            thinned = thinned.enumerated().compactMap { $0.offset % stride == 0 ? $0.element : nil }
+        }
+        if thinned.last?.distanceMeters != last.distanceMeters {
             thinned.append(last)
         }
         return thinned

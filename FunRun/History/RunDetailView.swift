@@ -41,6 +41,16 @@ struct RunDetailView: View {
                 if run.autoPauseCount > 0 {
                     LabeledContent("Auto-pauses", value: "\(run.autoPauseCount)")
                 }
+                // Tells a map that came up short apart from one that
+                // never had the fixes to draw.
+                if let accepted = run.gpsFixesAccepted {
+                    LabeledContent(
+                        "GPS fixes",
+                        value: (run.gpsFixesRejected ?? 0) > 0
+                            ? "\(accepted) · \(run.gpsFixesRejected ?? 0) too coarse"
+                            : "\(accepted)"
+                    )
+                }
             }
 
             if let saved = run.savedWorkouts, saved.count > 1 {

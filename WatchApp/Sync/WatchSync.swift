@@ -68,6 +68,13 @@ final class WatchSync: NSObject, WCSessionDelegate {
         WCSession.default.transferUserInfo(info)
     }
 
+    /// Drop the planned route from the watch. The phone keeps its copy
+    /// of what it last sent, so it can be sent again.
+    func clearPlannedRoute() {
+        RoutePlanStore.clear()
+        plannedRoute = nil
+    }
+
     /// Queue a file transfer for every run the phone doesn't have yet.
     /// Transfers survive app suspension; completion marks them done.
     func backupPendingRuns() {
