@@ -62,6 +62,9 @@ enum DemoData {
                 activeSeconds: moving,
                 distanceMeters: distance,
                 averageHeartRate: Double(138 + (index * 7) % 26),
+                // Roughly a kcal per kg per km — plausible for the
+                // screenshots without pretending to be measured.
+                activeEnergyKilocalories: (distance / 1000) * 72,
                 effort: plan.effort,
                 shoeID: shoes[plan.shoe].id,
                 shoeName: shoes[plan.shoe].displayName,

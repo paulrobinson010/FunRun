@@ -11,6 +11,8 @@ enum TrainingLoad {
 
     struct WeekSummary {
         var distanceMeters: Double
+        /// Active energy across the week's runs; 0 when none recorded it.
+        var kilocalories: Int
         var load: Double
         /// This week ÷ the average of the previous four (nil until
         /// there's history to compare against).
@@ -28,6 +30,7 @@ enum TrainingLoad {
         let currentRuns = runs.filter { $0.startDate >= thisWeekStart }
         let current = WeekSummary(
             distanceMeters: currentRuns.reduce(0) { $0 + $1.distanceMeters },
+            kilocalories: Int(currentRuns.reduce(0) { $0 + ($1.activeEnergyKilocalories ?? 0) }.rounded()),
             load: load(of: currentRuns),
             rampRatio: nil
         )

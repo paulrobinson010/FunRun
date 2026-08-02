@@ -387,6 +387,7 @@ final class WorkoutManager: NSObject {
             activeSeconds: elapsed,
             distanceMeters: distanceMeters,
             averageHeartRate: averageHeartRate,
+            activeEnergyKilocalories: activeEnergyKilocalories > 0 ? activeEnergyKilocalories : nil,
             effort: runEffort ?? walkEffort,
             shoeID: shoe?.id,
             shoeName: shoe?.displayName,
@@ -786,6 +787,9 @@ final class WorkoutManager: NSObject {
             .averageQuantity()?.doubleValue(for: bpm)
         let totalEnergy = builder.statistics(for: HKQuantityType(.activeEnergyBurned))?
             .sumQuantity()?.doubleValue(for: .kilocalorie())
+        if let totalEnergy, totalEnergy > activeEnergyKilocalories {
+            activeEnergyKilocalories = totalEnergy
+        }
 
         let chunks = WorkoutChunker.chunks(from: segments)
         do {

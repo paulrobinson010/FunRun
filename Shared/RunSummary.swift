@@ -19,6 +19,8 @@ struct RunSummary: Codable, Identifiable, Hashable {
     var activeSeconds: TimeInterval
     var distanceMeters: Double
     var averageHeartRate: Double?
+    /// Active energy for the outing, as HealthKit measured it.
+    var activeEnergyKilocalories: Double? = nil
     /// Perceived effort 1–10, asked for at the end of the session.
     var effort: Int?
     var shoeID: UUID?
@@ -43,6 +45,14 @@ struct RunSummary: Codable, Identifiable, Hashable {
     var walkEffort: Int? = nil
 
     var distanceKm: Double { distanceMeters / 1000 }
+
+    /// Rounded for display; nil when the workout recorded no energy
+    /// (older runs saved before energy was carried, or a session
+    /// HealthKit gave nothing for).
+    var kilocalories: Int? {
+        guard let activeEnergyKilocalories, activeEnergyKilocalories >= 1 else { return nil }
+        return Int(activeEnergyKilocalories.rounded())
+    }
 
     var averagePaceSecondsPerKm: Double? {
         guard distanceMeters > 50, activeSeconds > 0 else { return nil }

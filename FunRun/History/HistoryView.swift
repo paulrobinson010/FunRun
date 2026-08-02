@@ -16,6 +16,11 @@ struct HistoryView: View {
                                     .foregroundStyle(Gaitway.gradient)
                                     .gaitwayShimmer()
                                 Spacer()
+                                if week.kilocalories > 0 {
+                                    Text("\(week.kilocalories) cal")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Gaitway.muted)
+                                }
                                 Text("Load \(Int(week.load.rounded()))")
                                     .font(.subheadline)
                                     .foregroundStyle(Gaitway.muted)
@@ -89,9 +94,14 @@ struct RunRow: View {
                 Label(Format.distance(run.distanceMeters), systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                 Label(Format.duration(run.activeSeconds), systemImage: "stopwatch")
                 Label("\(Format.pace(run.averagePaceSecondsPerKm))/km", systemImage: "speedometer")
+                if let kcal = run.kilocalories {
+                    Label("\(kcal) cal", systemImage: "flame.fill")
+                }
             }
             .font(.caption)
             .foregroundStyle(Gaitway.muted)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
         }
         .padding(.vertical, 4)
     }

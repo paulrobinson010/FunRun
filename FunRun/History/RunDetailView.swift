@@ -26,6 +26,9 @@ struct RunDetailView: View {
                     LabeledContent("Walk pace", value: "\(Format.pace(walkPace))/km")
                 }
                 LabeledContent("Avg heart rate", value: "\(Format.heartRate(run.averageHeartRate)) bpm")
+                if let kcal = run.kilocalories {
+                    LabeledContent("Calories", value: "\(kcal) cal")
+                }
                 if let effort = run.effort {
                     LabeledContent(
                         run.walkEffort != nil ? "Run effort" : "Effort",
