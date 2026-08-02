@@ -70,7 +70,10 @@ struct DemoMetricsScene: View {
                 demoMetricRow(value: Format.distance(4_210), unit: "", icon: "point.topleft.down.curvedto.point.bottomright.up")
                 demoMetricRow(value: "152", unit: "bpm", icon: "heart.fill", iconColor: .red)
 
-                SegmentStatusRow(toGoMeters: 640, deltaSeconds: -4)
+                SegmentStatusRow(
+                    status: SegmentStatus(kind: .estimate, meters: 640, progress: 0.42),
+                    deltaSeconds: -4
+                )
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(.horizontal, 4)

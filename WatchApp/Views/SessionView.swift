@@ -244,11 +244,10 @@ struct MetricsView: View {
                     iconColor: .red
                 )
 
-                if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
+                if workout.segmentStatus != nil || workout.segmentLiveDeltaSeconds != nil {
                     SegmentStatusRow(
-                        toGoMeters: workout.segmentToGoMeters,
-                        deltaSeconds: workout.segmentLiveDeltaSeconds,
-                        progress: workout.segmentProgressFraction
+                        status: workout.segmentStatus,
+                        deltaSeconds: workout.segmentLiveDeltaSeconds
                     )
                 }
             }
@@ -367,11 +366,10 @@ struct ForksView: View {
                     .foregroundStyle(Gaitway.magenta)
             }
 
-            if workout.segmentToGoMeters != nil || workout.segmentLiveDeltaSeconds != nil {
+            if workout.segmentStatus != nil || workout.segmentLiveDeltaSeconds != nil {
                 SegmentStatusRow(
-                    toGoMeters: workout.segmentToGoMeters,
-                    deltaSeconds: workout.segmentLiveDeltaSeconds,
-                    progress: workout.segmentProgressFraction
+                    status: workout.segmentStatus,
+                    deltaSeconds: workout.segmentLiveDeltaSeconds
                 )
             }
 
@@ -380,7 +378,7 @@ struct ForksView: View {
                     ForkChoiceRow(choice: choice)
                 }
             } else {
-                Text("No fork ahead")
+                Text("No fork within 100 m")
                     .font(.title3.weight(.semibold))
                 Text("Choices appear ~100 m before a junction you've run before.")
                     .font(.body)
@@ -400,10 +398,8 @@ struct ForksView: View {
 /// length is known from history) and the live vs-history delta. Shared
 /// by the metrics page and the forks page.
 struct SegmentStatusRow: View {
-    let toGoMeters: Double?
+    let status: SegmentStatus?
     let deltaSeconds: TimeInterval?
-    /// How far through the segment you are, for the travel track.
-    var progress: Double? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -411,8 +407,8 @@ struct SegmentStatusRow: View {
                 Image(systemName: "flag.checkered")
                     .font(.body)
                     .foregroundStyle(Gaitway.magenta)
-                if let toGoMeters {
-                    Text("\(Format.compactDistance(toGoMeters)) to go")
+                if let status {
+                    Text(status.label)
                         .font(.system(.title3, design: .rounded).weight(.semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -426,7 +422,8 @@ struct SegmentStatusRow: View {
                     SegmentDeltaChip(deltaSeconds: deltaSeconds)
                 }
             }
-            if let progress {
+            // Only drawn when a fraction actually means something.
+            if let progress = status?.progress {
                 PathTravelTrack(progress: progress)
             }
         }

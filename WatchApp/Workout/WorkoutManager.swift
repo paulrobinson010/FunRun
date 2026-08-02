@@ -1,3 +1,4 @@
+import CoreLocation
 import CoreMotion
 import Foundation
 import HealthKit
@@ -13,6 +14,34 @@ struct KmSplit: Equatable {
     var seconds: TimeInterval
     var historyDeltaSeconds: TimeInterval
     var at: Date
+}
+
+/// Where you are along the segment being run. The three cases are
+/// genuinely different claims, and saying which is which stops an
+/// estimate that has run out from reading as fact.
+struct SegmentStatus: Equatable {
+    enum Kind: Equatable {
+        /// A fork is actually in sight — measured, not guessed.
+        case toFork
+        /// History's idea of how long this stretch is, still plausible.
+        case estimate
+        /// No fork in sight and the estimate is spent: all that can be
+        /// said honestly is how far you have come.
+        case covered
+    }
+
+    var kind: Kind
+    var meters: Double
+    /// Only when a fraction means something.
+    var progress: Double?
+
+    var label: String {
+        switch kind {
+        case .toFork: "\(Format.compactDistance(meters)) to fork"
+        case .estimate: "~\(Format.compactDistance(meters)) to fork"
+        case .covered: "\(Format.compactDistance(meters)) on segment"
+        }
+    }
 }
 
 /// What the planned route says to do at the fork ahead.
@@ -73,9 +102,8 @@ final class WorkoutManager: NSObject {
     /// the push to the fork. Nil until enough known ground has been
     /// covered since the last fork.
     private(set) var segmentLiveDeltaSeconds: TimeInterval?
-    /// Metres left of the segment being run, when its length is known
-    /// from history.
-    private(set) var segmentToGoMeters: Double?
+    /// Where you are along the segment being run.
+    private(set) var segmentStatus: SegmentStatus?
     /// The planned route being followed this session, when one was sent
     /// from the phone.
     private(set) var activePlan: PlannedRoute?
@@ -118,14 +146,6 @@ final class WorkoutManager: NSObject {
     }
 
     var isAutoPaused: Bool { phase == .paused(auto: true) }
-
-    /// How far through the current segment you are, when its length is
-    /// known from history — drives the segment travel track.
-    var segmentProgressFraction: Double? {
-        guard let planned = segmentPlannedMeters, planned > 0,
-              let toGo = segmentToGoMeters else { return nil }
-        return min(1, max(0, 1 - toGo / planned))
-    }
 
     /// How far along the planned route you are.
     var planProgressFraction: Double? {
@@ -285,7 +305,7 @@ final class WorkoutManager: NSObject {
             segmentHistoryDelta = 0
             segmentDeltaSamples = 0
             segmentLiveDeltaSeconds = nil
-            segmentToGoMeters = nil
+            segmentStatus = nil
             segmentPlannedMeters = nil
             segmentStartWorkoutDistance = 0
             runHistoryDelta = 0
@@ -493,23 +513,47 @@ final class WorkoutManager: NSObject {
         }
     }
 
-    /// Once ~40 m into a segment the branch being run is identifiable
-    /// from history, giving the segment's expected length — from there
-    /// the stats row can show distance to go.
+    /// What can honestly be said about the segment underway. A fork in
+    /// sight is measured against real GPS; before one appears, history's
+    /// median length for the branch stands in; once that estimate is
+    /// spent with still no fork, it is dropped rather than pinned at
+    /// zero — the old behaviour left "0 m to go" on screen for hundreds
+    /// of metres whenever the estimate came up short.
     private func updateSegmentProgress() {
-        guard let predictor = routePredictor, let passage = lastDecisionPassage else {
-            segmentToGoMeters = nil
+        guard let predictor = routePredictor, let passage = lastDecisionPassage,
+              let location = routeRecorder.lastLocation else {
+            segmentStatus = nil
             return
         }
-        let covered = distanceMeters - segmentStartWorkoutDistance
-        if segmentPlannedMeters == nil, covered > 40, covered < 160,
-           let location = routeRecorder.lastLocation {
+        let covered = max(0, distanceMeters - segmentStartWorkoutDistance)
+        if segmentPlannedMeters == nil, covered > 40, covered < 160 {
             segmentPlannedMeters = predictor.branchLengthMeters(
                 from: passage.key,
                 towards: location.coordinate
             )
         }
-        segmentToGoMeters = segmentPlannedMeters.map { max(0, $0 - covered) }
+
+        if let node = planTurn?.nodeKey ?? routePrediction?.nodeKey {
+            let centre = node.centerCoordinate
+            let metres = location.distance(
+                from: CLLocation(latitude: centre.latitude, longitude: centre.longitude)
+            )
+            segmentStatus = SegmentStatus(
+                kind: .toFork,
+                meters: metres,
+                progress: covered + metres > 0 ? covered / (covered + metres) : nil
+            )
+            return
+        }
+        if let planned = segmentPlannedMeters, planned > 0, covered < planned {
+            segmentStatus = SegmentStatus(
+                kind: .estimate,
+                meters: planned - covered,
+                progress: covered / planned
+            )
+            return
+        }
+        segmentStatus = SegmentStatus(kind: .covered, meters: covered, progress: nil)
     }
 
     private func updateHomeGuidance() {
@@ -661,7 +705,7 @@ final class WorkoutManager: NSObject {
             segmentLiveDeltaSeconds = nil
             segmentStartWorkoutDistance = distanceMeters
             segmentPlannedMeters = nil
-            segmentToGoMeters = nil
+            segmentStatus = nil
         }
         guard let previous = lastDecisionPassage, previous.key != key else { return }
         let seconds = wallElapsed - previous.wallElapsed
@@ -953,7 +997,7 @@ final class WorkoutManager: NSObject {
         lastArrivalNode = nil
         kmSplit = nil
         segmentLiveDeltaSeconds = nil
-        segmentToGoMeters = nil
+        segmentStatus = nil
         segmentPlannedMeters = nil
         activePlan = nil
         planTurn = nil
