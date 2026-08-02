@@ -183,6 +183,12 @@ final class WorkoutManager: NSObject {
     /// start, and the segment's expected length once inferred.
     private var segmentStartWorkoutDistance: Double = 0
     private var segmentPlannedMeters: Double?
+    /// The fork this segment left, and the direction it was left in.
+    /// The bearing is taken over a short chord from the fork — history
+    /// stores an ~18 m exit bearing, so a chord measured 150 m along a
+    /// curving path used to match a different branch entirely.
+    private var segmentForkCentre: CLLocationCoordinate2D?
+    private var segmentExitBearing: Double?
     /// The fork currently being stood at / passed through, for edge
     /// detection — distinct from the prediction, which looks ahead.
     private var lastArrivalNode: RouteGraph.GridKey?
@@ -307,6 +313,8 @@ final class WorkoutManager: NSObject {
             segmentLiveDeltaSeconds = nil
             segmentStatus = nil
             segmentPlannedMeters = nil
+            segmentForkCentre = nil
+            segmentExitBearing = nil
             segmentStartWorkoutDistance = 0
             runHistoryDelta = 0
             runDeltaSamples = 0
@@ -526,10 +534,13 @@ final class WorkoutManager: NSObject {
             return
         }
         let covered = max(0, distanceMeters - segmentStartWorkoutDistance)
-        if segmentPlannedMeters == nil, covered > 40, covered < 160 {
+        if segmentExitBearing == nil, covered > 25, covered < 70, let centre = segmentForkCentre {
+            segmentExitBearing = RouteGraph.bearing(from: centre, to: location.coordinate)
+        }
+        if segmentPlannedMeters == nil, let exitBearing = segmentExitBearing {
             segmentPlannedMeters = predictor.branchLengthMeters(
                 from: passage.key,
-                towards: location.coordinate
+                exitBearing: exitBearing
             )
         }
 
@@ -706,6 +717,8 @@ final class WorkoutManager: NSObject {
             segmentStartWorkoutDistance = distanceMeters
             segmentPlannedMeters = nil
             segmentStatus = nil
+            segmentForkCentre = key.centerCoordinate
+            segmentExitBearing = nil
         }
         guard let previous = lastDecisionPassage, previous.key != key else { return }
         let seconds = wallElapsed - previous.wallElapsed
@@ -999,6 +1012,8 @@ final class WorkoutManager: NSObject {
         segmentLiveDeltaSeconds = nil
         segmentStatus = nil
         segmentPlannedMeters = nil
+        segmentForkCentre = nil
+        segmentExitBearing = nil
         activePlan = nil
         planTurn = nil
         planDistanceToGoMeters = nil

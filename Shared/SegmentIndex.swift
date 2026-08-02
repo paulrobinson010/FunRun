@@ -105,20 +105,44 @@ struct SegmentIndex {
     /// The stretch behind one branch of a fork: length and the fastest
     /// pace it's been covered at, from traversals setting off in this
     /// direction.
-    func branchStats(from: RouteGraph.GridKey, startBearing: Double) -> BranchStats? {
-        let matches = (byFromCell[from] ?? []).filter {
-            RouteGraph.angularDistance($0.startBearing, startBearing) <= RouteGraph.clusterWidthDegrees
+    func branchStats(from: RouteGraph.GridKey, startBearing: Double, toleranceDegrees: Double = 40) -> BranchStats? {
+        let traversals = byFromCell[from] ?? []
+        guard !traversals.isEmpty else { return nil }
+
+        // Group by where each pass ended up: one group is one real
+        // fork-to-fork segment. Taking a median across every direction
+        // at once was how a short neighbouring branch could stand in
+        // for the long one actually being run — the mixture belonged to
+        // no segment at all.
+        var groups: [(to: RouteGraph.GridKey, items: [Traversal])] = []
+        for traversal in traversals {
+            let match = groups.firstIndex {
+                max(abs($0.to.x - traversal.to.x), abs($0.to.y - traversal.to.y)) <= 2
+            }
+            if let match {
+                groups[match].items.append(traversal)
+            } else {
+                groups.append((traversal.to, [traversal]))
+            }
         }
-        guard !matches.isEmpty else { return nil }
-        let meters = matches.map(\.distanceMeters).sorted()
-        let paces = matches.compactMap { traversal -> Double? in
+
+        // The group whose exit direction best matches the way you left.
+        let candidates = groups.compactMap { group -> (offset: Double, items: [Traversal])? in
+            let exit = RouteGraph.circularMean(group.items.map(\.startBearing))
+            let offset = RouteGraph.angularDistance(exit, startBearing)
+            return offset <= toleranceDegrees ? (offset, group.items) : nil
+        }
+        guard let best = candidates.min(by: { $0.offset < $1.offset }) else { return nil }
+
+        let meters = best.items.map(\.distanceMeters).sorted()
+        let paces = best.items.compactMap { traversal -> Double? in
             guard traversal.distanceMeters > 150 else { return nil }
             return traversal.seconds / (traversal.distanceMeters / 1000)
         }
         return BranchStats(
             medianMeters: meters[meters.count / 2],
             bestSecondsPerKm: paces.min(),
-            count: matches.count
+            count: best.items.count
         )
     }
 }

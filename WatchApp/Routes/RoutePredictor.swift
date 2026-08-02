@@ -251,22 +251,12 @@ final class RoutePredictor: Sendable {
         RouteGraph.GridKey(coordinate).neighbours(radius: 2).first(where: graph.decisionCells.contains)
     }
 
-    /// Length of the segment leaving `fork` towards where the runner now
-    /// is — how "1.2 km segment" pairs with "800 m covered" to give a
+    /// Length of the segment leaving `fork` in the direction you left
+    /// it — how "1.2 km segment" pairs with "800 m covered" to give a
     /// to-go figure. Recent history first, all history as fallback.
-    func branchLengthMeters(from fork: RouteGraph.GridKey, towards coordinate: CLLocationCoordinate2D) -> Double? {
-        let center = fork.centerCoordinate
-        let from = TrackPoint(
-            latitude: center.latitude, longitude: center.longitude,
-            elapsed: 0, distanceMeters: 0, energyKilocalories: 0
-        )
-        let to = TrackPoint(
-            latitude: coordinate.latitude, longitude: coordinate.longitude,
-            elapsed: 0, distanceMeters: 0, energyKilocalories: 0
-        )
-        let bearing = RouteGraph.bearing(from: from, to: to)
-        return segments.branchStats(from: fork, startBearing: bearing)?.medianMeters
-            ?? routing.branchStats(from: fork, startBearing: bearing)?.medianMeters
+    func branchLengthMeters(from fork: RouteGraph.GridKey, exitBearing: Double) -> Double? {
+        segments.branchStats(from: fork, startBearing: exitBearing)?.medianMeters
+            ?? routing.branchStats(from: fork, startBearing: exitBearing)?.medianMeters
     }
 
     /// Quickest known time home setting off from this fork in this

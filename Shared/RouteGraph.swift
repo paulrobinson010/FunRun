@@ -350,6 +350,13 @@ struct RouteGraph {
         return (degrees + 360).truncatingRemainder(dividingBy: 360)
     }
 
+    static func bearing(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> Double {
+        bearing(
+            from: TrackPoint(latitude: a.latitude, longitude: a.longitude, elapsed: 0, distanceMeters: 0, energyKilocalories: 0),
+            to: TrackPoint(latitude: b.latitude, longitude: b.longitude, elapsed: 0, distanceMeters: 0, energyKilocalories: 0)
+        )
+    }
+
     static func angularDistance(_ a: Double, _ b: Double) -> Double {
         let difference = abs(a - b).truncatingRemainder(dividingBy: 360)
         return min(difference, 360 - difference)
