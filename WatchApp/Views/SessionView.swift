@@ -344,7 +344,7 @@ struct ForksView: View {
                 .padding(6)
                 .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
             } else {
-                Text("Follow the route — the turn shows ~100 m before each fork.")
+                Text("Follow the route — the turn shows ~50 m before each fork.")
                     .font(.body)
                     .foregroundStyle(.secondary)
             }
@@ -378,9 +378,9 @@ struct ForksView: View {
                     ForkChoiceRow(choice: choice)
                 }
             } else {
-                Text("No fork within 100 m")
+                Text("No fork within 50 m")
                     .font(.title3.weight(.semibold))
-                Text("Choices appear ~100 m before a junction you've run before.")
+                Text("Choices appear ~50 m before a junction you've run before.")
                     .font(.body)
                     .foregroundStyle(.secondary)
             }

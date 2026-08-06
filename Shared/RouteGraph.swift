@@ -222,6 +222,45 @@ struct RouteGraph {
                 && boundary.j >= startGuard && boundary.j < other.count - endGuard
         }
 
+        /// A boundary taken as-is is biased: "together" means within a
+        /// cell, so a split keeps matching for a cell or two past the
+        /// real junction (and a merge starts matching before it), and
+        /// the cell recorded is always the walked path's, never between
+        /// the two. Both errors point along the direction of travel.
+        /// Recentring on where the pair genuinely come closest, and
+        /// taking the midpoint between them, removes both.
+        func refined(_ boundary: (i: Int, j: Int)) -> GridKey {
+            var bestDistance = Int.max
+            var candidates: [(i: Int, j: Int)] = []
+            for di in -5...5 {
+                let i = boundary.i + di
+                guard i >= 0, i < path.count else { continue }
+                for dj in -5...5 {
+                    let j = boundary.j + dj
+                    guard j >= 0, j < other.count else { continue }
+                    let distance = max(
+                        abs(path[i].key.x - other[j].key.x),
+                        abs(path[i].key.y - other[j].key.y)
+                    )
+                    if distance < bestDistance {
+                        bestDistance = distance
+                        candidates = [(i, j)]
+                    } else if distance == bestDistance {
+                        candidates.append((i, j))
+                    }
+                }
+            }
+            // The closest approach is usually a run of equally close
+            // cells; its middle is the junction, either end is a bias.
+            guard !candidates.isEmpty else { return path[boundary.i].key }
+            let middle = candidates[candidates.count / 2]
+            func halved(_ value: Int) -> Int { value >= 0 ? value / 2 : (value - 1) / 2 }
+            return GridKey(
+                x: halved(path[middle.i].key.x + other[middle.j].key.x),
+                y: halved(path[middle.i].key.y + other[middle.j].key.y)
+            )
+        }
+
         var events: [GridKey] = []
         var together = match(at: 0, radius: togetherRadius) != nil
         var lastShared: (i: Int, j: Int)?
@@ -242,7 +281,7 @@ struct RouteGraph {
                         together = false
                         streak = 0
                         if let boundary = lastShared, isRealBoundary(boundary) {
-                            events.append(path[boundary.i].key)
+                            events.append(refined(boundary))
                         }
                     }
                 }
@@ -256,7 +295,7 @@ struct RouteGraph {
                         together = true
                         streak = 0
                         if let boundary = firstShared, isRealBoundary(boundary) {
-                            events.append(path[boundary.i].key)
+                            events.append(refined(boundary))
                         }
                         lastShared = firstShared
                         firstShared = nil
@@ -270,7 +309,7 @@ struct RouteGraph {
         // Path ended while a convergence was still confirming: the
         // shared tail ran out of road, not out of evidence.
         if !together, let boundary = firstShared, streak >= flushStreak, isRealBoundary(boundary) {
-            events.append(path[boundary.i].key)
+            events.append(refined(boundary))
         }
         return events
     }

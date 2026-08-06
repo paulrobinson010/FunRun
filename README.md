@@ -45,7 +45,7 @@ your history.
 - **Fork pop-ups** — the watch records each session's GPS track and
   learns where your routes fork (a fork is where passes that shared a
   corridor genuinely part ways, detected by path divergence — so
-  zigzags, GPS drift and out-and-backs never fake one). About 100 m
+  zigzags, GPS drift and out-and-backs never fake one). About 50 m
   before a known fork, a wrist tap and pop-up price each choice —
   left/right/straight relative to your heading — with the length of the
   segment it leads onto, your fastest pace over it in the last 28 days

@@ -639,7 +639,7 @@ final class WorkoutManager: NSObject {
 
     /// Two jobs each tick: notice actually *passing* a fork (segment
     /// timing keys off real arrival, matching how history was carved
-    /// up), and look ~100 m ahead for the next fork so the choices pop
+    /// up), and look ~50 m ahead for the next fork so the choices pop
     /// up with thinking time — with a tap when a new one appears.
     private func updateRoutePrediction() {
         guard let predictor = routePredictor,
@@ -696,7 +696,7 @@ final class WorkoutManager: NSObject {
         }
     }
 
-    /// The upcoming fork (from the same ~100 m lookahead the fork
+    /// The upcoming fork (from the same ~50 m lookahead the fork
     /// pop-up uses) becomes the planned turn: the direction the next
     /// leg leaves it in.
     private func updatePlanTurn(approaching nodeKey: RouteGraph.GridKey?, course: Double) {

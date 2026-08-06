@@ -44,7 +44,7 @@ competitor's name.
     Stand still for five seconds and the session pauses itself. Start moving and it resumes on its own. Manual pauses stay paused until you say otherwise.
 
     FORKS, PRICED
-    Every run teaches Gaitway your local map. About 100 m before a junction you've run before, your wrist shows each way on: how long that stretch is, your fastest pace over it in the last 28 days — the time to beat — and the quickest you could be home going that way.
+    Every run teaches Gaitway your local map. About 50 m before a junction you've run before, your wrist shows each way on: how long that stretch is, your fastest pace over it in the last 28 days — the time to beat — and the quickest you could be home going that way.
 
     SEGMENTS, RACED
     The stretch between two forks is a segment. While you run one, your watch carries the distance still to go and a live plus/minus against your own recent history over that exact ground. Finish it and see your time against your last 28 days, with a medal when you beat every recent pass.
@@ -100,7 +100,7 @@ For the first release:
     • Auto-pause. Stop at a crossing. It should pause after about five seconds and resume on its own when you set off.
     • Finishing. Press End once — it shows "Saving…" for a few seconds, then asks for effort. A mixed outing asks for walking and running effort separately.
     • Kilometre splits. Each km pops up with its time and a plus/minus against your own history over the same ground. Second run onwards is when the plus/minus starts meaning anything.
-    • Forks. From your second or third run over the same ground, a fork pop-up should appear about 100 m before junctions, showing each way's distance, the pace to beat, and the quickest way home. Swipe right mid-run for the same thing as a page.
+    • Forks. From your second or third run over the same ground, a fork pop-up should appear about 50 m before junctions, showing each way's distance, the pace to beat, and the quickest way home. Swipe right mid-run for the same thing as a page.
     • Phone: Network tab. Everywhere you've run, drawn as segments joined at junctions. Tap a segment for how often you've run it each way and your best time.
     • Phone: Route tab. Pick segments to build a route, send it to the watch, then run it — the watch shows only the turn the route calls for, plus distance to go.
 

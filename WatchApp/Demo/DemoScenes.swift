@@ -21,7 +21,7 @@ struct DemoRootView: View {
     }
 }
 
-/// The fork pop-up as it fires ~100 m out: two known ways on, each with
+/// The fork pop-up as it fires ~50 m out: two known ways on, each with
 /// its stretch, the pace to beat, and the quickest way home — plus the
 /// live segment delta pushing you to the fork.
 struct DemoForkScene: View {

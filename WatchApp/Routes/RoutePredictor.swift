@@ -274,10 +274,12 @@ final class RoutePredictor: Sendable {
         return best
     }
 
-    /// The prediction fires from ~100 m out, but only for a fork you're
+    /// The prediction fires from ~50 m out, but only for a fork you're
     /// actually heading towards — the position is projected forward
-    /// along the course, not just widened.
-    private static let lookaheadMeters: [Double] = [0, 36, 72, 108]
+    /// along the course, not just widened. Each probe also matches
+    /// within ~2 cells, so the effective reach runs a little past the
+    /// last step.
+    private static let lookaheadMeters: [Double] = [0, 18, 36]
 
     func prediction(at location: CLLocation, course: Double) -> RoutePrediction? {
         for ahead in Self.lookaheadMeters {
