@@ -23,6 +23,15 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     private(set) var acceptedFixes = 0
     private(set) var rejectedFixes = 0
 
+    /// The authorization Core Location has actually reported, for the
+    /// start screen to show when something is wrong.
+    private(set) var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    /// Whether the delegate has reported authorization even once — until
+    /// it has, `manager.authorizationStatus` cannot be trusted.
+    private var hasReportedAuthorization = false
+    private var hasAskedThisLaunch = false
+    private var wantsPermission = false
+
     private let manager = CLLocationManager()
     private var sessionStart = Date()
     private var isRecording = false
@@ -48,10 +57,27 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     /// Ask once, up front, while the app is settled in the foreground —
     /// asking in the same breath as starting a workout is what makes
     /// grants not stick and prompts reappear.
+    ///
+    /// Core Location does not have the real authorization ready the
+    /// instant a manager is built: it reports it through the delegate a
+    /// moment later, and `authorizationStatus` read before that can
+    /// still say `.notDetermined` on a perfectly authorized app. The
+    /// manager here is built at launch and this was called straight
+    /// away from the start screen, so every cold launch read the stale
+    /// value and asked again — once each morning, in practice. The
+    /// request is now held until the real status is known, and only
+    /// ever made once per launch.
     func requestPermissionIfNeeded() {
-        if manager.authorizationStatus == .notDetermined {
-            manager.requestWhenInUseAuthorization()
-        }
+        wantsPermission = true
+        askIfGenuinelyUndetermined()
+    }
+
+    private func askIfGenuinelyUndetermined() {
+        guard wantsPermission, hasReportedAuthorization, !hasAskedThisLaunch else { return }
+        wantsPermission = false
+        guard manager.authorizationStatus == .notDetermined else { return }
+        hasAskedThisLaunch = true
+        manager.requestWhenInUseAuthorization()
     }
 
     private var isAuthorized: Bool {
@@ -102,14 +128,19 @@ final class RouteRecorder: NSObject, CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        let authorized = manager.authorizationStatus == .authorizedWhenInUse
-            || manager.authorizationStatus == .authorizedAlways
+        let status = manager.authorizationStatus
+        let authorized = status == .authorizedWhenInUse || status == .authorizedAlways
         Task { @MainActor in
+            self.authorizationStatus = status
+            self.hasReportedAuthorization = true
             // Granted mid-session (first-ever run): turn background
             // updates on now that it's allowed.
             if authorized, self.isRecording {
                 self.manager.allowsBackgroundLocationUpdates = true
             }
+            // Now the status is real, any request held back can be
+            // judged properly — and dropped if it was never needed.
+            self.askIfGenuinelyUndetermined()
         }
     }
 

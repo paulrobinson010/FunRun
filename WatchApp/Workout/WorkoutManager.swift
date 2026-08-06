@@ -355,6 +355,18 @@ final class WorkoutManager: NSObject {
         routeRecorder.requestPermissionIfNeeded()
     }
 
+    /// Set when location is in a state that will spoil a run, so the
+    /// start screen can say so rather than leaving it to be discovered
+    /// afterwards from a map with no route on it.
+    var locationWarning: String? {
+        switch routeRecorder.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways: nil
+        case .denied: "Location denied — no route or GPS distance"
+        case .restricted: "Location restricted — no route or GPS distance"
+        default: "Location not allowed yet"
+        }
+    }
+
     func togglePause() {
         switch phase {
         case .active:

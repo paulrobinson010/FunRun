@@ -30,6 +30,13 @@ struct StartView: View {
                     .gaitwayGlow(Gaitway.cyan, radius: 12)
                     .background(GaitwayHalo().frame(width: 40, height: 40))
 
+                if let warning = workout.locationWarning {
+                    Label(warning, systemImage: "location.slash")
+                        .font(.footnote)
+                        .foregroundStyle(Gaitway.magenta)
+                        .multilineTextAlignment(.center)
+                }
+
                 if case .failed(let message) = workout.phase {
                     Text(message)
                         .font(.footnote)
