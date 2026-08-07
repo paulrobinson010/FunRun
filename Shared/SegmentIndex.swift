@@ -90,14 +90,39 @@ struct SegmentIndex {
         byFromCell[from] ?? []
     }
 
-    /// Stats with endpoint tolerance on the `from` side too — for
-    /// callers holding geometry-end cells rather than canonical fork
-    /// cells (the network map, the route planner).
-    func stats(nearFrom from: RouteGraph.GridKey, to: RouteGraph.GridKey) -> Stats? {
+    /// Stats for one drawn stretch. Endpoints alone are not enough to
+    /// identify it: two different paths can join the same pair of
+    /// junctions without a fork between them, and pooling their times
+    /// describes neither route. A traversal counts only if it also set
+    /// off the same way and covered about the same ground.
+    func stats(
+        nearFrom from: RouteGraph.GridKey,
+        to: RouteGraph.GridKey,
+        leavingOn bearing: Double? = nil,
+        aboutMeters meters: Double? = nil
+    ) -> Stats? {
+        let targets = Set(to.selfAndNeighbours)
         for candidate in from.neighbours(radius: 2) {
-            if let stats = stats(from: candidate, to: to) {
-                return stats
+            let matches = (byFromCell[candidate] ?? []).filter { traversal in
+                guard targets.contains(traversal.to) else { return false }
+                if let bearing,
+                   RouteGraph.angularDistance(traversal.startBearing, bearing) > RouteGraph.clusterWidthDegrees {
+                    return false
+                }
+                if let meters, meters > 0 {
+                    // A different way round is a different length; allow
+                    // for GPS wander and the odd detour round a puddle.
+                    guard abs(traversal.distanceMeters - meters) <= max(80, meters * 0.3) else { return false }
+                }
+                return true
             }
+            guard !matches.isEmpty else { continue }
+            let seconds = matches.map(\.seconds)
+            return Stats(
+                averageSeconds: seconds.reduce(0, +) / Double(seconds.count),
+                bestSeconds: seconds.min() ?? 0,
+                count: matches.count
+            )
         }
         return nil
     }

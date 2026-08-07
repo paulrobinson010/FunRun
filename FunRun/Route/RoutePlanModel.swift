@@ -118,7 +118,8 @@ final class RoutePlanModel {
                     expectedSeconds: expectedSeconds(
                         from: orientation.from,
                         to: orientation.to,
-                        lengthMeters: segment.lengthMeters
+                        lengthMeters: segment.lengthMeters,
+                        exitBearing: bearing(from: coordinates[0], to: bearingSample)
                     ),
                     exitBearing: bearing(from: coordinates[0], to: bearingSample),
                     backToStartMeters: back.first { Self.near($0.node, orientation.to) }?.meters
@@ -131,8 +132,17 @@ final class RoutePlanModel {
 
     /// Typical time over a stretch: fork-to-fork history when it exists
     /// (either direction), overall average pace when it doesn't.
-    private func expectedSeconds(from: RouteGraph.GridKey, to: RouteGraph.GridKey, lengthMeters: Double) -> TimeInterval {
-        if let stats = segmentStats?.stats(nearFrom: from, to: to) ?? segmentStats?.stats(nearFrom: to, to: from) {
+    private func expectedSeconds(
+        from: RouteGraph.GridKey,
+        to: RouteGraph.GridKey,
+        lengthMeters: Double,
+        exitBearing: Double
+    ) -> TimeInterval {
+        // Same shape test as the network card: a different way round
+        // between these two junctions is not this leg.
+        if let stats = segmentStats?.stats(
+            nearFrom: from, to: to, leavingOn: exitBearing, aboutMeters: lengthMeters
+        ) {
             return stats.averageSeconds
         }
         return lengthMeters / averageSpeed

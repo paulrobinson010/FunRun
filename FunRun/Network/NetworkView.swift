@@ -237,14 +237,37 @@ struct NetworkView: View {
         guard let timings,
               let first = segment.coordinates.first,
               let last = segment.coordinates.last else { return [] }
+        // Match on the stretch's own shape, not just its endpoints:
+        // the way it sets off and roughly how far it runs. Otherwise a
+        // different route between the same two junctions is counted
+        // here too.
+        let forwardCoordinates = segment.coordinates
+        let reverseCoordinates = Array(segment.coordinates.reversed())
         var rows: [(bearing: Double, stats: SegmentIndex.Stats)] = []
-        if let forward = timings.stats(nearFrom: segment.endA, to: segment.endB) {
+        if let forward = timings.stats(
+            nearFrom: segment.endA,
+            to: segment.endB,
+            leavingOn: initialBearing(along: forwardCoordinates),
+            aboutMeters: segment.lengthMeters
+        ) {
             rows.append((straightBearing(from: first, to: last), forward))
         }
-        if let reverse = timings.stats(nearFrom: segment.endB, to: segment.endA) {
+        if let reverse = timings.stats(
+            nearFrom: segment.endB,
+            to: segment.endA,
+            leavingOn: initialBearing(along: reverseCoordinates),
+            aboutMeters: segment.lengthMeters
+        ) {
             rows.append((straightBearing(from: last, to: first), reverse))
         }
         return rows
+    }
+
+    /// How the stretch leaves its first junction — matched against the
+    /// short exit bearing history records, so a few points in.
+    private func initialBearing(along coordinates: [CLLocationCoordinate2D]) -> Double? {
+        guard let first = coordinates.first, coordinates.count >= 2 else { return nil }
+        return straightBearing(from: first, to: coordinates[min(3, coordinates.count - 1)])
     }
 
     private func straightBearing(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> Double {
