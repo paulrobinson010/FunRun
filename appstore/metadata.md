@@ -169,3 +169,26 @@ in the questionnaire:
 - **Age rating**: 4+
 - **Copyright**: 2026 Paul Robinson
 - **Screenshots**: `appstore/01-…` through `06-…` (1242 × 2688, 6.5")
+
+# Resolution Center reply — watch icon (circular appearance)
+
+Paste when resubmitting after the "icon does not appear circular"
+rejection:
+
+    Thank you for the feedback on the Apple Watch app icon.
+
+    We have redesigned the icon so that it reads clearly as a circle
+    on the watch face. The neon ring in our logo has been enlarged so
+    that it now forms the icon's own circular edge — it sits exactly
+    at the circular mask boundary, with no dark margin between the
+    artwork and the edge — and the ring has been made continuous
+    around the full circumference. The icon's edge is therefore drawn
+    by the bright cyan-to-magenta ring itself, so the icon presents a
+    clearly defined circular shape against any watch face, rather
+    than relying on the background colour.
+
+    The updated icon is included in this build for both the watch app
+    and its widget extension. We kept the dark interior because it is
+    part of the app's visual identity, and with the illuminated ring
+    now defining the icon's edge, the icon appears unmistakably
+    circular on Apple Watch.
