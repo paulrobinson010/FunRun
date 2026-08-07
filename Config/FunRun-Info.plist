@@ -6,6 +6,8 @@
 	<string>Gaitway</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is used during outdoor workouts to measure distance and pace accurately.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
